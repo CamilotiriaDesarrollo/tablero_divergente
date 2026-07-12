@@ -1,0 +1,55 @@
+// app/(app)/ideas/page.tsx
+// Banco de ideas (RSC) = proyectos con status 'idea'. Captura rapida arriba y
+// cada idea con "Promover a activo" (sin perder datos). Es una vista de proyectos,
+// no una tabla aparte (BLUEPRINT seccion 4).
+import { Lightbulb } from "lucide-react";
+import { getIdeas } from "@/lib/db/projects";
+import { IdeaQuickCapture } from "@/components/proyectos/idea-quick-capture";
+import { IdeaCard } from "@/components/proyectos/idea-card";
+
+export const metadata = {
+  title: "Banco de ideas",
+};
+
+export default async function IdeasPage() {
+  const ideas = await getIdeas();
+
+  return (
+    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:py-10">
+      <header className="mb-6 space-y-1">
+        <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+          Banco de ideas
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Guarda ideas sueltas sin friccion. Cuando una madure, promuevela a
+          proyecto activo sin perder nada.
+        </p>
+      </header>
+
+      <IdeaQuickCapture />
+
+      {ideas.length === 0 ? (
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card/40 px-6 py-16 text-center">
+          <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <Lightbulb className="size-6" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="font-heading text-lg font-medium">
+              El banco esta vacio
+            </h2>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              Anota tu primera idea arriba. No tiene que estar completa, solo lo
+              suficiente para no olvidarla.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {ideas.map((idea) => (
+            <IdeaCard key={idea.id} idea={idea} />
+          ))}
+        </div>
+      )}
+    </main>
+  );
+}

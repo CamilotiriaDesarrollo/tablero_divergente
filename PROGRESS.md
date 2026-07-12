@@ -60,14 +60,20 @@ Build: verificado (ver Fase 0 checkpoint).
 - [x] `lib/db/actions.ts` (Server Actions con validacion zod + revalidatePath, unica puerta de mutacion del cliente).
 - [x] `lib/utils/dates.ts` (dias_restantes, buckets), `lib/utils/urgency.ts` (medidor firma).
 
-## Fase 2 — Features (paralelo: projects + tasks + calendar)  [ ]
-- [ ] projects-feature, tasks-feature, calendar-feature. Build verde.
+## Fase 2 — Features (paralelo: projects + tasks + calendar)  [x]
+- [x] projects-feature: galeria/tablero, detalle, CRUD, estados, banco de ideas con promover. app/(app)/proyectos, /ideas, components/proyectos.
+- [x] tasks-feature: tabla Notion, Kanban (dnd-kit), buckets de tiempo, prioridad, subtareas, bandeja, diarias, medidor de urgencia. app/(app)/tareas, /bandeja, components/tareas.
+- [x] calendar-feature: vista de mes por due_at, crear al hacer clic en dia. app/(app)/calendario, components/calendario.
+- [x] Build verde tras integracion.
 
-## Fase 3 — Integracion (orquestador)  [ ]
-- [ ] assistant-feature (endpoint Anthropic + tool-use), cableado global (nav, layout, Cmd+K, Realtime, Inicio/Foco, ideas, PWA iconos, modo oscuro).
+## Fase 3 — Integracion (orquestador)  [x]
+- [x] assistant-feature: app/api/ai/route.ts (bucle tool-use, Anthropic SDK, modelo claude-sonnet-5, llave solo server, zod, rate-limit Upstash opcional), lib/ai/{tools,prompt,execute,rate-limit}.ts.
+- [x] Cableado global: lib/nav.ts, components/shared/{app-shell,command-palette,realtime-refresher,sign-out-button,empty-state,inicio-quick-capture}, components/assistant/{chat-panel,message-list}, app/(app)/layout.tsx (shell + guard), app/(app)/page.tsx (Inicio/Foco), iconos PWA en public/icons, modo oscuro (next-themes + theme-toggle).
+- [x] Nota: Base UI usa `render`/estado controlado, no `asChild` (Radix). Ajustado.
 
-## Fase 4 — Revision en loop (paralelo: code + security + ux)  [ ]
-- [ ] Recoger veredictos, arreglar bloqueadores, re-verificar.
+## Fase 4 — Revision en loop (paralelo: code + security + ux)  [~]
+- [ ] 3 revisores + verificacion adversaria de bloqueadores. Arreglar confirmados. Re-verificar build.
 
-## Fase 5 — Despliegue  [ ]
-- [ ] `DEPLOY.md` (Vercel + Supabase), migraciones en prod, prueba de humo, checklist seccion 11.
+## Fase 5 — Despliegue  [~]
+- [x] `DEPLOY.md` (Vercel + Supabase, migraciones en prod, seed post-signup, prueba de humo, checklist seccion 11).
+- [ ] Build final verde tras Fase 4.

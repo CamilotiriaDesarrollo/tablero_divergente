@@ -1,0 +1,109 @@
+"use client";
+// Tarjeta arrastrable del Kanban. El arrastre vive en un asa dedicada para que
+// la casilla, el titulo y el menu sigan siendo clicables. Compacta por diseno.
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
+import type { Task, TaskWithProject } from "@/types/db";
+import {
+  completeTaskAction,
+  reopenTaskAction,
+} from "@/lib/db/actions";
+import { diasRestantesLabel, estaVencida } from "@/lib/utils/dates";
+import { Checkbox } from "@/components/ui/checkbox";
+import { PriorityBadge } from "@/components/tareas/priority-badge";
+import { UrgencyMeter } from "@/components/tareas/urgency-meter";
+import { TaskActionsMenu } from "@/components/tareas/task-actions-menu";
+import { useRunAction } from "@/components/tareas/use-run-action";
+import { cn } from "@/lib/utils";
+
+export function KanbanCard({
+  task,
+  onEdit,
+}: {
+  task: TaskWithProject;
+  onEdit: (task: Task) => void;
+}) {
+  const { run } = useRunAction();
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  const done = task.status === "hecho";
+  const vencida = !done && estaVencida(task.due_at);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "flex flex-col gap-2 rounded-lg border border-border bg-card p-2.5 shadow-xs",
+        isDragging && "opacity-40",
+      )}
+    >
+      <div className="flex items-start gap-1.5">
+        <button
+          type="button"
+          aria-label="Arrastrar tarea"
+          className="mt-0.5 cursor-grab touch-none rounded-sm text-muted-foreground/60 hover:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="size-4" />
+        </button>
+        <Checkbox
+          checked={done}
+          onCheckedChange={() =>
+            run(
+              () =>
+                done ? reopenTaskAction(task.id) : completeTaskAction(task.id),
+              { success: done ? "Tarea reabierta" : "Tarea realizada" },
+            )
+          }
+          aria-label={done ? "Reabrir tarea" : "Realizar tarea"}
+          className="mt-0.5"
+        />
+        <button
+          type="button"
+          onClick={() => onEdit(task)}
+          className={cn(
+            "flex-1 text-left text-sm leading-snug hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+            done && "text-muted-foreground line-through",
+          )}
+        >
+          {task.title}
+        </button>
+        <TaskActionsMenu task={task} onEdit={onEdit} />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 pl-6">
+        {task.priority && (
+          <PriorityBadge priority={task.priority} showLabel={false} />
+        )}
+        {task.project && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-border/60 px-1.5 py-0.5 text-xs text-muted-foreground">
+            {task.project.icon && <span aria-hidden>{task.project.icon}</span>}
+            <span className="max-w-24 truncate">{task.project.name}</span>
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-2 pl-6">
+        <span
+          className={cn(
+            "font-mono text-xs tabular-nums",
+            vencida ? "font-medium text-priority-alta" : "text-muted-foreground",
+          )}
+        >
+          {task.due_at ? diasRestantesLabel(task.due_at) : "sin fecha"}
+        </span>
+        <UrgencyMeter priority={task.priority} dueAt={task.due_at} done={done} />
+      </div>
+    </div>
+  );
+}
