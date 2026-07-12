@@ -50,14 +50,15 @@ Build: verificado (ver Fase 0 checkpoint).
 
 ---
 
-## Fase 1 — Cimientos (paralelo: db-architect + design-system)  [ ]
-- [ ] db-architect: `supabase/migrations/*` (esquema, RLS 4x2, indices, triggers, Realtime) + `supabase/seed.sql`.
-- [ ] design-system: tokens del blueprint en `globals.css` (paleta pizarra + prioridades), tema claro/oscuro, `components/shared/theme-toggle`.
-- [ ] Compuerta: `npm run build` verde.
+## Fase 1 — Cimientos (paralelo: db-architect + design-system)  [x]
+- [x] db-architect: `supabase/migrations/0001_schema.sql` + `0002_rls.sql` (esquema, RLS 4x2, indices, triggers, Realtime idempotente) + `supabase/seed.sql` (datos reales, resuelve owner, no destructivo) + `config.toml`.
+- [x] design-system: paleta pizarra + prioridades (unico color saturado) en `globals.css`, tema claro/oscuro AA, fuentes mapeadas, focus-visible + prefers-reduced-motion, `components/shared/theme-toggle.tsx`.
+- [x] Compuerta: `npm run build` verde. Migraciones y RLS revisadas: exactas al contrato.
 
-## Fase 1.5 — Contratos de datos (orquestador)  [ ]
-- [ ] `lib/db/projects.ts`, `lib/db/tasks.ts` (queries + mutations tipadas).
-- [ ] `lib/utils/dates.ts` (dias_restantes, buckets), `lib/utils/urgency.ts`.
+## Fase 1.5 — Contratos de datos (orquestador)  [x]
+- [x] `lib/db/projects.ts`, `lib/db/tasks.ts` (queries + mutations tipadas, server-side).
+- [x] `lib/db/actions.ts` (Server Actions con validacion zod + revalidatePath, unica puerta de mutacion del cliente).
+- [x] `lib/utils/dates.ts` (dias_restantes, buckets), `lib/utils/urgency.ts` (medidor firma).
 
 ## Fase 2 — Features (paralelo: projects + tasks + calendar)  [ ]
 - [ ] projects-feature, tasks-feature, calendar-feature. Build verde.
