@@ -3,6 +3,7 @@
 // componentes NO consultan Supabase directo). Todo server-side; RLS garantiza
 // que solo se ve/edita lo del dueno (user_id = auth.uid()).
 import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/config";
 import type {
   Project,
   ProjectInsert,
@@ -29,6 +30,7 @@ async function requireUserId(): Promise<string> {
 export async function getProjects(opts?: {
   statuses?: ProjectStatus[];
 }): Promise<Project[]> {
+  if (!isSupabaseConfigured()) return [];
   const supabase = await client();
   let query = supabase
     .from("projects")
@@ -59,6 +61,7 @@ export async function getIdeas(): Promise<Project[]> {
 export async function getProjectsWithCounts(opts?: {
   statuses?: ProjectStatus[];
 }): Promise<ProjectWithCount[]> {
+  if (!isSupabaseConfigured()) return [];
   const supabase = await client();
   let query = supabase
     .from("projects")
@@ -85,6 +88,7 @@ export async function getProjectsWithCounts(opts?: {
 }
 
 export async function getProjectById(id: string): Promise<Project | null> {
+  if (!isSupabaseConfigured()) return null;
   const supabase = await client();
   const { data, error } = await supabase
     .from("projects")
@@ -99,6 +103,7 @@ export async function getProjectById(id: string): Promise<Project | null> {
 export async function getProjectOptions(): Promise<
   Pick<Project, "id" | "name" | "color" | "icon" | "status">[]
 > {
+  if (!isSupabaseConfigured()) return [];
   const supabase = await client();
   const { data, error } = await supabase
     .from("projects")

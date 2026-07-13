@@ -112,6 +112,9 @@ export default async function InicioPage() {
       getTodayTasks(),
       getTasksInRange(addDays(now, 1), addDays(now, 14)),
     ]);
+    // Proximo excluye lo ya realizado (getTasksInRange no filtra estado; el
+    // calendario si quiere ver las hechas por fecha, Inicio no).
+    upcoming = upcoming.filter((t) => t.status !== "hecho");
   } catch {
     failed = true;
   }

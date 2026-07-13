@@ -62,6 +62,7 @@ agregalas desde ahi.
    | `ANTHROPIC_API_KEY` | tu llave de Anthropic |
    | `ANTHROPIC_MODEL` | `claude-sonnet-5` (opcional) |
    | `NEXT_PUBLIC_APP_NAME` | `Tablero Divergente` (o el nombre que quieras) |
+   | `NEXT_PUBLIC_ALLOW_SIGNUP` | `true` solo para crear tu cuenta; luego `false` |
    | `UPSTASH_REDIS_REST_URL` | opcional, para rate-limit del asistente |
    | `UPSTASH_REDIS_REST_TOKEN` | opcional |
 
@@ -71,9 +72,14 @@ agregalas desde ahi.
 
 ## 4. Registrarte y sembrar tus datos
 
-1. Abre la URL de produccion. Te lleva a `/login`.
-2. Crea tu cuenta con tu correo (primera vez: "Crea tu cuenta").
-3. Para cargar los proyectos y tareas de arranque, corre el seed **despues** de
+1. **Abre el registro solo para tu cuenta.** Pon `NEXT_PUBLIC_ALLOW_SIGNUP=true`
+   en Vercel y redepliega. En Supabase, deja habilitado "Allow new users to sign up".
+2. Abre la URL de produccion (`/login`), usa "Crea tu cuenta" con tu correo, entra.
+3. **Cierra el registro.** Vuelve `NEXT_PUBLIC_ALLOW_SIGNUP=false` (redeploy) y en
+   Supabase desactiva "Allow new users to sign up". Asi nadie mas puede registrarse
+   ni abusar de la llave del asistente. (Recomendado ademas: configurar Upstash para
+   rate-limit del endpoint de IA.)
+4. Para cargar los proyectos y tareas de arranque, corre el seed **despues** de
    registrarte (necesita tu usuario en `auth.users`):
 
    ```bash

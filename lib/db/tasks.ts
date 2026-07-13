@@ -3,6 +3,7 @@
 // RLS garantiza ownership. Las vistas de la plantilla (Hoy, buckets, bandeja,
 // diarias) son FILTROS, no tablas (BLUEPRINT seccion 4).
 import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/config";
 import type {
   Task,
   TaskInsert,
@@ -38,6 +39,7 @@ export interface TaskFilter {
 }
 
 export async function getTasks(filter: TaskFilter = {}): Promise<TaskWithProject[]> {
+  if (!isSupabaseConfigured()) return [];
   const supabase = await client();
   let query = supabase
     .from("tasks")
@@ -95,6 +97,7 @@ export async function getTasksByProject(projectId: string): Promise<TaskWithProj
 
 /** Subtareas de una tarea (micro-tareas). */
 export async function getSubtasks(parentId: string): Promise<Task[]> {
+  if (!isSupabaseConfigured()) return [];
   const supabase = await client();
   const { data, error } = await supabase
     .from("tasks")
@@ -108,6 +111,7 @@ export async function getSubtasks(parentId: string): Promise<Task[]> {
 
 /** Hoy = due_at = hoy y status <> hecho. */
 export async function getTodayTasks(): Promise<TaskWithProject[]> {
+  if (!isSupabaseConfigured()) return [];
   const supabase = await client();
   const today = toDateColumn(new Date());
   const { data, error } = await supabase
@@ -122,6 +126,7 @@ export async function getTodayTasks(): Promise<TaskWithProject[]> {
 
 /** Vencidas = due_at < hoy y status <> hecho. */
 export async function getOverdueTasks(): Promise<TaskWithProject[]> {
+  if (!isSupabaseConfigured()) return [];
   const supabase = await client();
   const today = toDateColumn(new Date());
   const { data, error } = await supabase
@@ -139,6 +144,7 @@ export async function getTasksInRange(
   from: Date,
   to: Date,
 ): Promise<TaskWithProject[]> {
+  if (!isSupabaseConfigured()) return [];
   const supabase = await client();
   const { data, error } = await supabase
     .from("tasks")
@@ -151,6 +157,7 @@ export async function getTasksInRange(
 }
 
 export async function getTaskById(id: string): Promise<Task | null> {
+  if (!isSupabaseConfigured()) return null;
   const supabase = await client();
   const { data, error } = await supabase
     .from("tasks")
@@ -170,6 +177,7 @@ export async function searchTasks(params: {
   dueOn?: string; // YYYY-MM-DD
   limit?: number;
 }): Promise<TaskWithProject[]> {
+  if (!isSupabaseConfigured()) return [];
   const supabase = await client();
   let query = supabase.from("tasks").select(PROJECT_JOIN);
 

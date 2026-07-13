@@ -71,9 +71,14 @@ Build: verificado (ver Fase 0 checkpoint).
 - [x] Cableado global: lib/nav.ts, components/shared/{app-shell,command-palette,realtime-refresher,sign-out-button,empty-state,inicio-quick-capture}, components/assistant/{chat-panel,message-list}, app/(app)/layout.tsx (shell + guard), app/(app)/page.tsx (Inicio/Foco), iconos PWA en public/icons, modo oscuro (next-themes + theme-toggle).
 - [x] Nota: Base UI usa `render`/estado controlado, no `asChild` (Radix). Ajustado.
 
-## Fase 4 — Revision en loop (paralelo: code + security + ux)  [~]
-- [ ] 3 revisores + verificacion adversaria de bloqueadores. Arreglar confirmados. Re-verificar build.
+## Fase 4 — Revision en loop (paralelo: code + security + ux)  [x]
+- [x] 3 revisores + verificacion adversaria. code y ux: aprobado con sugerencias. security: 1 bloqueador confirmado.
+- [x] BLOQUEADOR (seguridad): registro abierto en app de un solo dueno. Arreglado: registro cerrado por defecto (NEXT_PUBLIC_ALLOW_SIGNUP, oculto en UI) + documentado cerrar signups en Supabase.
+- [x] Mejoras (high): Inicio "Proximo" excluye tareas hechas; iconos con import nombrado (tree-shaking) via nav-icons; validacion de URL laxa (sin ZodError con toast generico); app/(app)/error.tsx (boundary con voz de interfaz); app/(app)/loading.tsx (skeleton para Inicio/Tareas/Bandeja); foco visible en el medidor de urgencia.
+- [x] Guardas isSupabaseConfigured en lecturas de lib/db (sin cuelgues antes de configurar; el "recorre la interfaz" funciona).
+- [x] Modelo del asistente confirmado valido: claude-sonnet-5.
+- [x] Re-verificado: `npm run build` verde. Prueba de humo runtime: todas las rutas HTTP 200 sin errores.
 
-## Fase 5 — Despliegue  [~]
-- [x] `DEPLOY.md` (Vercel + Supabase, migraciones en prod, seed post-signup, prueba de humo, checklist seccion 11).
-- [ ] Build final verde tras Fase 4.
+## Fase 5 — Despliegue  [x]
+- [x] `DEPLOY.md` (Vercel + Supabase, apertura/cierre de registro, migraciones en prod, seed post-signup, prueba de humo, checklist seccion 11).
+- [x] Build final verde tras Fase 4. La app queda lista para desplegar (falta que el dueno cargue sus llaves reales).

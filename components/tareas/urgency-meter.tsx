@@ -59,7 +59,7 @@ export function UrgencyMeter({
               aria-valuemax={100}
               tabIndex={0}
               className={cn(
-                "flex items-center gap-1.5 rounded-sm outline-none",
+                "flex items-center gap-1.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
                 className,
               )}
             />

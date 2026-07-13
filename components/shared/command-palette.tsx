@@ -2,7 +2,8 @@
 // components/shared/command-palette.tsx
 // Barra de comando (Cmd/Ctrl+K): navegacion y accion de abrir el asistente.
 import { useRouter } from "next/navigation";
-import * as Icons from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { navIcon } from "@/components/shared/nav-icons";
 import {
   CommandDialog,
   CommandInput,
@@ -46,15 +47,13 @@ export function CommandPalette({
               onOpenAssistant();
             }}
           >
-            <Icons.Sparkles className="size-4" />
+            <Sparkles className="size-4" />
             <span>Abrir asistente</span>
           </CommandItem>
         </CommandGroup>
         <CommandGroup heading="Ir a">
           {NAV_ITEMS.map((item) => {
-            const Icon =
-              (Icons[item.icon as keyof typeof Icons] as Icons.LucideIcon) ??
-              Icons.Circle;
+            const Icon = navIcon(item.icon);
             return (
               <CommandItem
                 key={item.href}

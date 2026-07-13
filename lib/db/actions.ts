@@ -30,7 +30,7 @@ const createProjectSchema = z.object({
   type: z.array(z.string()).nullish(),
   color: z.string().nullish(),
   icon: z.string().nullish(),
-  cover_url: z.string().url().nullish().or(z.literal("")),
+  cover_url: z.string().trim().max(2000).nullish(),
 });
 
 const updateProjectSchema = createProjectSchema.partial();
@@ -46,7 +46,7 @@ const createTaskSchema = z.object({
   category: z.string().nullish(),
   received_at: isoDate.nullish(),
   due_at: isoDate.nullish(),
-  resource_url: z.string().url().nullish().or(z.literal("")),
+  resource_url: z.string().trim().max(2000).nullish(),
   is_daily: z.boolean().optional(),
 });
 

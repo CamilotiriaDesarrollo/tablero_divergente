@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tablero Divergente
 
-## Getting Started
+App personal de gestion (proyectos, tareas, ideas, calendario) de un solo dueno.
+En linea, editable siempre, conversacional. Filosofia: **los datos no deciden, las
+personas si.** El color y la urgencia son senal, nunca decision automatica.
 
-First, run the development server:
+Reemplaza una plantilla de Notion con: Proyectos, Tareas (tabla + Kanban + buckets
+de tiempo + diarias), Bandeja de entrada, Banco de ideas, Calendario, un asistente
+conversacional (lenguaje natural), sincronizacion en vivo entre dispositivos e
+instalacion como PWA.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Stack
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Next.js 15** (App Router, Server Components, Server Actions) + TypeScript estricto
+- **Supabase** (Postgres + Auth + RLS + Realtime)
+- **Tailwind CSS v4** + **shadcn/ui** (Base UI)
+- **TanStack Query** (UI optimista) · **dnd-kit** (Kanban, calendario) · **date-fns**
+- **@anthropic-ai/sdk** server-side (modelo Sonnet, tool-use) para el asistente
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Arranque local
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. `npm install`
+2. Copia `.env.example` a `.env.local` y completa tus llaves (Supabase + Anthropic).
+   Para crear tu cuenta la primera vez pon `NEXT_PUBLIC_ALLOW_SIGNUP=true`.
+3. Aplica las migraciones (`supabase/migrations/`) y, tras registrarte, el seed
+   (`supabase/seed.sql`). Ver [DEPLOY.md](./DEPLOY.md).
+4. `npm run dev` y abre http://localhost:3000
 
-## Learn More
+> Sin llaves reales la app compila y arranca, pero no habla con Supabase: veras la
+> interfaz con estados vacios hasta configurar `.env.local`.
 
-To learn more about Next.js, take a look at the following resources:
+## Comandos
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Comando | Que hace |
+|---|---|
+| `npm run dev` | Desarrollo local |
+| `npm run build` | Compila y verifica tipos |
+| `npm run start` | Sirve el build de produccion |
+| `npx supabase db push` | Aplica migraciones |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Estructura
 
-## Deploy on Vercel
+- `app/(app)/` vistas autenticadas · `app/(auth)/login` acceso · `app/api/ai` asistente
+- `components/` UI por modulo (`proyectos`, `tareas`, `calendario`, `assistant`, `shared`, `ui`)
+- `lib/db/` acceso a datos centralizado · `lib/ai/` asistente · `lib/utils/` fechas y urgencia
+- `supabase/` esquema, RLS, indices, triggers y seed · `types/db.ts` contrato de tipos
+- `.claude/agents/` subagentes · `BLUEPRINT.md` fuente de verdad · `PROGRESS.md` bitacora
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Seguridad
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+RLS en `projects` y `tasks` (`user_id = auth.uid()`). Las llaves de servicio y de
+Anthropic viven solo en el servidor. El endpoint `/api/ai` exige sesion, valida
+entrada y aplica rate-limit si Upstash esta configurado. Registro cerrado por defecto.
+
+## Despliegue
+
+Vercel + Supabase. Guia completa en [DEPLOY.md](./DEPLOY.md).

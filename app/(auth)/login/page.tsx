@@ -14,6 +14,10 @@ import { toast } from "sonner";
 export default function LoginPage() {
   const router = useRouter();
   const configured = isSupabaseConfigured();
+  // App de un solo dueno: el registro esta cerrado por defecto. Actívalo solo
+  // para crear tu cuenta (NEXT_PUBLIC_ALLOW_SIGNUP=true) y vuelve a cerrarlo.
+  // Ademas, desactiva "Allow new users to sign up" en Supabase (ver DEPLOY.md).
+  const allowSignup = process.env.NEXT_PUBLIC_ALLOW_SIGNUP === "true";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,6 +28,13 @@ export default function LoginPage() {
     if (!configured) {
       toast.error("Falta configurar Supabase", {
         description: "Agrega tus llaves en .env.local para iniciar sesion.",
+      });
+      return;
+    }
+    if (mode === "signup" && !allowSignup) {
+      toast.error("Registro cerrado", {
+        description:
+          "Esta app es de un solo dueno. El registro esta desactivado.",
       });
       return;
     }
@@ -113,15 +124,17 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <button
-          type="button"
-          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-          className="w-full text-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-        >
-          {mode === "signin"
-            ? "Primera vez? Crea tu cuenta"
-            : "Ya tienes cuenta? Entra"}
-        </button>
+        {allowSignup && (
+          <button
+            type="button"
+            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+            className="w-full text-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            {mode === "signin"
+              ? "Primera vez? Crea tu cuenta"
+              : "Ya tienes cuenta? Entra"}
+          </button>
+        )}
       </div>
     </main>
   );

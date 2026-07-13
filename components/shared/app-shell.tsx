@@ -5,7 +5,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import * as Icons from "lucide-react";
+import { Layers, Menu, Search, Sparkles } from "lucide-react";
+import { navIcon } from "@/components/shared/nav-icons";
 import { cn } from "@/lib/utils";
 import { APP_NAME } from "@/lib/config";
 import { NAV_ITEMS } from "@/lib/nav";
@@ -26,9 +27,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           item.href === "/"
             ? pathname === "/"
             : pathname.startsWith(item.href);
-        const Icon =
-          (Icons[item.icon as keyof typeof Icons] as Icons.LucideIcon) ??
-          Icons.Circle;
+        const Icon = navIcon(item.icon);
         return (
           <Link
             key={item.href}
@@ -81,7 +80,7 @@ export function AppShell({
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-sidebar px-3 py-4 md:flex">
         <Link href="/" className="mb-6 flex items-center gap-2 px-2">
           <span className="grid size-7 place-items-center rounded-md bg-primary/15 text-primary">
-            <Icons.Layers className="size-4" />
+            <Layers className="size-4" />
           </span>
           <span className="font-heading text-sm font-semibold tracking-tight">
             {APP_NAME}
@@ -110,7 +109,7 @@ export function AppShell({
             aria-label="Abrir navegacion"
             onClick={() => setMobileNav(true)}
           >
-            <Icons.Menu className="size-5" />
+            <Menu className="size-5" />
           </Button>
           <Sheet open={mobileNav} onOpenChange={setMobileNav}>
             <SheetContent side="left" className="w-64 p-4">
@@ -128,7 +127,7 @@ export function AppShell({
             onClick={() => setPaletteOpen(true)}
             className="flex flex-1 items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:border-primary/40 md:max-w-xs"
           >
-            <Icons.Search className="size-4" />
+            <Search className="size-4" />
             <span className="flex-1">Buscar o navegar</span>
             <kbd className="hidden rounded border border-border px-1.5 font-mono text-[10px] sm:inline">
               Ctrl K
@@ -142,7 +141,7 @@ export function AppShell({
               onClick={() => setAssistantOpen(true)}
               className="gap-2"
             >
-              <Icons.Sparkles className="size-4" />
+              <Sparkles className="size-4" />
               <span className="hidden sm:inline">Asistente</span>
             </Button>
           </div>
