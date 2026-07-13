@@ -30,25 +30,25 @@ begin
   );
 
   insert into public.projects (user_id, name, status, icon, color, position)
-  select owner, 'Min Cultura', 'activo', '🏛️', 'ambar', 1
+  select owner, 'Min Cultura', 'activo', '🏛️', 'arena', 1
   where not exists (
     select 1 from public.projects where user_id = owner and name = 'Min Cultura'
   );
 
   insert into public.projects (user_id, name, status, icon, color, position)
-  select owner, 'PNMC - SIMUS', 'activo', '📋', 'cian', 2
+  select owner, 'PNMC - SIMUS', 'activo', '📋', 'oceano', 2
   where not exists (
     select 1 from public.projects where user_id = owner and name = 'PNMC - SIMUS'
   );
 
   insert into public.projects (user_id, name, status, icon, color, position)
-  select owner, 'Plataforma Eventos', 'activo', '🎫', 'periwinkle', 3
+  select owner, 'Plataforma Eventos', 'activo', '🎫', 'salvia', 3
   where not exists (
     select 1 from public.projects where user_id = owner and name = 'Plataforma Eventos'
   );
 
   insert into public.projects (user_id, name, status, icon, color, position)
-  select owner, 'Ministerio', 'activo', '🏢', 'brasa', 4
+  select owner, 'Ministerio', 'activo', '🏢', 'ciruela', 4
   where not exists (
     select 1 from public.projects where user_id = owner and name = 'Ministerio'
   );
