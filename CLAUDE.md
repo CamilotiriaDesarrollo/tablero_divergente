@@ -64,3 +64,23 @@ App personal de gestión (proyectos, tareas, ideas, calendario) de un solo dueñ
 - Tarea: `inbox | todo | en_progreso | hecho`. Bandeja = `status = inbox`. Realizada = `hecho` + `completed_at`.
 - Prioridad: `alta | media | baja` (🔥 ⚖️ ❄️).
 - Un control mantiene su nombre en todo el flujo: el botón "Publicar" produce el aviso "Publicado".
+
+## Bot de Telegram (Asistente Divergente)
+
+Fuente de verdad: `BLUEPRINT-BOT.md`. Reglas que no se negocian:
+
+- El webhook (`app/api/telegram/route.ts`) valida SIEMPRE en este orden: config completa (fail-fast), secret token del header, allowlist de `TELEGRAM_OWNER_ID`. Falla en silencio (200 vacío) ante extraños.
+- `lib/supabase/admin.ts` (service_role) SOLO se importa desde el canal del bot (`lib/bot/*`). Jamás desde componentes ni rutas web.
+- El bot corre TODO dentro de `runWithDbContext` (cliente admin + `OWNER_USER_ID`). La web nunca cambia de contexto.
+- `completar_tarea` y `actualizar_tarea` en el canal telegram son PROPUESTAS con botones Confirmar/Cancelar (`bot_pending_actions`, expiran en 10 min). Nunca ejecutar directo.
+- Sin herramientas de borrado en el bot. El dedup por `telegram_update_id` es idempotente: done → aviso; processing → reprocesar.
+- En local se usa el token del bot de DESARROLLO (`scripts/dev-bot.ts`, puente por long polling hacia localhost). El token de producción solo vive en Vercel.
+
+### Runbook (operación)
+
+- Rotar token del bot: BotFather → `/revoke` → actualizar `TELEGRAM_BOT_TOKEN` en Vercel → redeploy → `npx tsx scripts/set-webhook.ts https://<dominio>/api/telegram`.
+- Rotar `SUPABASE_SERVICE_ROLE_KEY`: panel Supabase → API Keys → regenerar → actualizar en Vercel → redeploy.
+- Verificar webhook: `npx tsx scripts/set-webhook.ts` sin argumento imprime el estado (`getWebhookInfo`); la URL debe ser la de producción.
+- Bot en pausa: enviar `/pausa` desde Telegram; `/reanudar` para despertarlo.
+- Tope de gasto: `BOT_DAILY_LIMIT` (default 200 respuestas/24 h) + límite mensual en console.anthropic.com.
+- Probar en local: `npm run dev` + `npx tsx scripts/dev-bot.ts` (borra el webhook del bot de dev y reenvía updates a localhost).

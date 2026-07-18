@@ -120,10 +120,50 @@ agregalas desde ahi.
 
 ---
 
-## 7. Comandos locales
+## 7. Bot de Telegram (Asistente Divergente)
+
+Plano completo en `BLUEPRINT-BOT.md`. Pasos del dueno (Fase 0), en orden:
+
+1. **Migracion del bot.** Aplica `supabase/migrations/0003_bot.sql` (CLI `db push`
+   o Editor SQL). Crea `bot_messages`, `bot_pending_actions` y `bot_state` con RLS.
+2. **Crea DOS bots en BotFather** (@BotFather en Telegram, comando `/newbot`):
+   uno de produccion (ej. `tablero_divergente_bot`) y uno de desarrollo
+   (ej. `tablero_dev_bot`). Guarda ambos tokens. En BotFather, para ambos:
+   `/setjoingroups` -> Disable, y Group Privacy -> Enabled.
+3. **Tu id de Telegram.** Escribele a `@userinfobot`; te responde tu id numerico.
+   Ese es `TELEGRAM_OWNER_ID`.
+4. **Tu uuid de Supabase.** Ya registrado en la web, corre en el Editor SQL:
+   `select id from auth.users;` -> ese uuid es `OWNER_USER_ID`.
+5. **Llave de transcripcion.** Cuenta gratis en console.groq.com -> API Keys ->
+   crea una -> `GROQ_API_KEY`.
+6. **Secreto del webhook.** Cualquier cadena aleatoria larga (64+ caracteres)
+   -> `TELEGRAM_WEBHOOK_SECRET`.
+7. **Variables en Vercel** (Production): `TELEGRAM_BOT_TOKEN` (el de PRODUCCION),
+   `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_OWNER_ID`, `OWNER_USER_ID`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`. Redeploy.
+8. **Registra el webhook** (desde tu maquina, con las mismas vars en `.env.local`
+   pero puedes usar el token de produccion SOLO para este comando):
+   `npx tsx scripts/set-webhook.ts https://TU-DOMINIO.vercel.app/api/telegram`
+9. **Prueba en produccion:** escribele al bot "crea una tarea de probar el bot" y
+   confirma que aparece en el tablero. Manda una nota de voz. Pide "marca como
+   hecha la tarea de probar el bot" y toca Confirmar.
+
+Para desarrollo local: en `.env.local` usa el token del bot de DESARROLLO y corre
+`npm run dev` + `npx tsx scripts/dev-bot.ts` (reenvia updates a localhost, sin tunel).
+
+Seguridad del bot (ya implementada): secret token verificado en cada request,
+allowlist de un solo `TELEGRAM_OWNER_ID` con fallo en silencio, dedup idempotente
+por `update_id`, confirmaciones con botones para completar/actualizar, sin
+herramientas de borrado, tope diario `BOT_DAILY_LIMIT` y comando `/pausa`.
+
+---
+
+## 8. Comandos locales
 
 ```bash
-npm run dev      # desarrollo en http://localhost:3000
-npm run build    # verificar que compila
-npm run start    # servir el build de produccion
+npm run dev                      # desarrollo en http://localhost:3000
+npm run build                    # verificar que compila
+npm run start                    # servir el build de produccion
+npx tsx scripts/dev-bot.ts       # puente local del bot (token de desarrollo)
+npx tsx scripts/set-webhook.ts   # registrar/verificar el webhook de produccion
 ```
