@@ -1,8 +1,12 @@
 // lib/db/tasks.ts
 // Acceso a datos de tareas (CLAUDE.md: data access centralizado). Server-side.
-// RLS garantiza ownership. Las vistas de la plantilla (Hoy, buckets, bandeja,
-// diarias) son FILTROS, no tablas (BLUEPRINT seccion 4).
-import { createClient } from "@/lib/supabase/server";
+// Funciona en dos contextos (lib/db/context.ts): web (cookies + RLS, historico)
+// y bot (service_role + user_id fijo). Como service_role bypassa RLS, cuando el
+// contexto define ownerId() se anade .eq("user_id", ...) como defensa en
+// profundidad en TODAS las consultas y mutaciones.
+// Las vistas de la plantilla (Hoy, buckets, bandeja, diarias) son FILTROS,
+// no tablas (BLUEPRINT seccion 4).
+import { dbContext, ownerId } from "@/lib/db/context";
 import { isSupabaseConfigured } from "@/lib/config";
 import type {
   Task,
@@ -16,11 +20,13 @@ import { toDateColumn } from "@/lib/utils/dates";
 const PROJECT_JOIN = "*, project:projects(id, name, color, icon)";
 
 async function client() {
-  return await createClient();
+  return await dbContext().getClient();
 }
 
 async function requireUserId(): Promise<string> {
-  const supabase = await createClient();
+  const ctx = dbContext();
+  if (ctx.userId) return ctx.userId; // bot: identidad fija del dueno
+  const supabase = await ctx.getClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -47,6 +53,8 @@ export async function getTasks(filter: TaskFilter = {}): Promise<TaskWithProject
     .order("position", { ascending: true })
     .order("created_at", { ascending: true });
 
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
   if (filter.status?.length) query = query.in("status", filter.status);
   if (filter.projectId !== undefined) {
     query =
@@ -99,12 +107,15 @@ export async function getTasksByProject(projectId: string): Promise<TaskWithProj
 export async function getSubtasks(parentId: string): Promise<Task[]> {
   if (!isSupabaseConfigured()) return [];
   const supabase = await client();
-  const { data, error } = await supabase
+  let query = supabase
     .from("tasks")
     .select("*")
     .eq("parent_task_id", parentId)
     .order("position", { ascending: true })
     .order("created_at", { ascending: true });
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query;
   if (error) throw error;
   return data ?? [];
 }
@@ -114,12 +125,15 @@ export async function getTodayTasks(): Promise<TaskWithProject[]> {
   if (!isSupabaseConfigured()) return [];
   const supabase = await client();
   const today = toDateColumn(new Date());
-  const { data, error } = await supabase
+  let query = supabase
     .from("tasks")
     .select(PROJECT_JOIN)
     .eq("due_at", today)
     .neq("status", "hecho")
     .order("position", { ascending: true });
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as unknown as TaskWithProject[];
 }
@@ -129,12 +143,15 @@ export async function getOverdueTasks(): Promise<TaskWithProject[]> {
   if (!isSupabaseConfigured()) return [];
   const supabase = await client();
   const today = toDateColumn(new Date());
-  const { data, error } = await supabase
+  let query = supabase
     .from("tasks")
     .select(PROJECT_JOIN)
     .lt("due_at", today)
     .neq("status", "hecho")
     .order("due_at", { ascending: true });
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as unknown as TaskWithProject[];
 }
@@ -146,12 +163,15 @@ export async function getTasksInRange(
 ): Promise<TaskWithProject[]> {
   if (!isSupabaseConfigured()) return [];
   const supabase = await client();
-  const { data, error } = await supabase
+  let query = supabase
     .from("tasks")
     .select(PROJECT_JOIN)
     .gte("due_at", toDateColumn(from))
     .lte("due_at", toDateColumn(to))
     .order("due_at", { ascending: true });
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as unknown as TaskWithProject[];
 }
@@ -159,11 +179,10 @@ export async function getTasksInRange(
 export async function getTaskById(id: string): Promise<Task | null> {
   if (!isSupabaseConfigured()) return null;
   const supabase = await client();
-  const { data, error } = await supabase
-    .from("tasks")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  let query = supabase.from("tasks").select("*").eq("id", id);
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query.maybeSingle();
   if (error) throw error;
   return data;
 }
@@ -181,6 +200,8 @@ export async function searchTasks(params: {
   const supabase = await client();
   let query = supabase.from("tasks").select(PROJECT_JOIN);
 
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
   if (params.projectId !== undefined) {
     query =
       params.projectId === null
@@ -238,12 +259,10 @@ export async function createSubtask(
 
 export async function updateTask(id: string, patch: TaskUpdate): Promise<Task> {
   const supabase = await client();
-  const { data, error } = await supabase
-    .from("tasks")
-    .update(patch)
-    .eq("id", id)
-    .select("*")
-    .single();
+  let query = supabase.from("tasks").update(patch).eq("id", id);
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query.select("*").single();
   if (error) throw error;
   return data;
 }
@@ -275,7 +294,10 @@ export async function toggleDaily(id: string, value: boolean): Promise<Task> {
 
 export async function deleteTask(id: string): Promise<void> {
   const supabase = await client();
-  const { error } = await supabase.from("tasks").delete().eq("id", id);
+  let query = supabase.from("tasks").delete().eq("id", id);
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { error } = await query;
   if (error) throw error;
 }
 
@@ -291,9 +313,12 @@ export async function moveTask(
 /** Reordena un conjunto de tareas (orden manual del dueno). */
 export async function reorderTasks(ids: string[]): Promise<void> {
   const supabase = await client();
+  const uid = ownerId();
   await Promise.all(
-    ids.map((id, index) =>
-      supabase.from("tasks").update({ position: index }).eq("id", id),
-    ),
+    ids.map((id, index) => {
+      let query = supabase.from("tasks").update({ position: index }).eq("id", id);
+      if (uid) query = query.eq("user_id", uid);
+      return query;
+    }),
   );
 }

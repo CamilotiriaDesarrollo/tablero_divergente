@@ -1,8 +1,11 @@
 // lib/db/projects.ts
 // Acceso a datos de proyectos (CLAUDE.md: data access centralizado; los
-// componentes NO consultan Supabase directo). Todo server-side; RLS garantiza
-// que solo se ve/edita lo del dueno (user_id = auth.uid()).
-import { createClient } from "@/lib/supabase/server";
+// componentes NO consultan Supabase directo). Todo server-side.
+// Funciona en dos contextos (lib/db/context.ts): web (cookies + RLS, historico)
+// y bot (service_role + user_id fijo). Cuando el contexto define ownerId() se
+// anade .eq("user_id", ...) como defensa en profundidad (RLS no aplica con
+// service_role).
+import { dbContext, ownerId } from "@/lib/db/context";
 import { isSupabaseConfigured } from "@/lib/config";
 import type {
   Project,
@@ -13,11 +16,13 @@ import type {
 } from "@/types/db";
 
 async function client() {
-  return await createClient();
+  return await dbContext().getClient();
 }
 
 async function requireUserId(): Promise<string> {
-  const supabase = await createClient();
+  const ctx = dbContext();
+  if (ctx.userId) return ctx.userId; // bot: identidad fija del dueno
+  const supabase = await ctx.getClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -38,6 +43,8 @@ export async function getProjects(opts?: {
     .order("position", { ascending: true })
     .order("created_at", { ascending: true });
 
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
   if (opts?.statuses?.length) {
     query = query.in("status", opts.statuses);
   }
@@ -69,6 +76,8 @@ export async function getProjectsWithCounts(opts?: {
     .order("position", { ascending: true })
     .order("created_at", { ascending: true });
 
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
   if (opts?.statuses?.length) {
     query = query.in("status", opts.statuses);
   }
@@ -90,11 +99,10 @@ export async function getProjectsWithCounts(opts?: {
 export async function getProjectById(id: string): Promise<Project | null> {
   if (!isSupabaseConfigured()) return null;
   const supabase = await client();
-  const { data, error } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  let query = supabase.from("projects").select("*").eq("id", id);
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query.maybeSingle();
   if (error) throw error;
   return data;
 }
@@ -105,10 +113,13 @@ export async function getProjectOptions(): Promise<
 > {
   if (!isSupabaseConfigured()) return [];
   const supabase = await client();
-  const { data, error } = await supabase
+  let query = supabase
     .from("projects")
     .select("id, name, color, icon, status")
     .order("name", { ascending: true });
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query;
   if (error) throw error;
   return data ?? [];
 }
@@ -134,12 +145,10 @@ export async function updateProject(
   patch: ProjectUpdate,
 ): Promise<Project> {
   const supabase = await client();
-  const { data, error } = await supabase
-    .from("projects")
-    .update(patch)
-    .eq("id", id)
-    .select("*")
-    .single();
+  let query = supabase.from("projects").update(patch).eq("id", id);
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query.select("*").single();
   if (error) throw error;
   return data;
 }
@@ -158,16 +167,25 @@ export async function promoteIdea(id: string): Promise<Project> {
 
 export async function deleteProject(id: string): Promise<void> {
   const supabase = await client();
-  const { error } = await supabase.from("projects").delete().eq("id", id);
+  let query = supabase.from("projects").delete().eq("id", id);
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { error } = await query;
   if (error) throw error;
 }
 
 /** Reordena proyectos segun el arreglo de ids (orden manual del dueno). */
 export async function reorderProjects(ids: string[]): Promise<void> {
   const supabase = await client();
+  const uid = ownerId();
   await Promise.all(
-    ids.map((id, index) =>
-      supabase.from("projects").update({ position: index }).eq("id", id),
-    ),
+    ids.map((id, index) => {
+      let query = supabase
+        .from("projects")
+        .update({ position: index })
+        .eq("id", id);
+      if (uid) query = query.eq("user_id", uid);
+      return query;
+    }),
   );
 }

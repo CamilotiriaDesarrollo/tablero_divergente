@@ -18,6 +18,10 @@ export type ProjectStatus = "idea" | "activo" | "pausado" | "hecho" | "archivado
 export type TaskStatus = "inbox" | "todo" | "en_progreso" | "hecho";
 export type Priority = "alta" | "media" | "baja";
 
+// --- Vocabulario del bot (BLUEPRINT-BOT seccion 4) ---
+export type BotRole = "user" | "assistant";
+export type BotMessageStatus = "processing" | "done";
+
 export const PROJECT_STATUSES: ProjectStatus[] = [
   "idea",
   "activo",
@@ -154,6 +158,90 @@ export interface Database {
           },
         ];
       };
+      bot_messages: {
+        Row: {
+          id: string;
+          user_id: string;
+          chat_id: number;
+          telegram_update_id: number | null;
+          status: BotMessageStatus;
+          role: BotRole;
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          chat_id: number;
+          telegram_update_id?: number | null;
+          status?: BotMessageStatus;
+          role: BotRole;
+          content: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          chat_id?: number;
+          telegram_update_id?: number | null;
+          status?: BotMessageStatus;
+          role?: BotRole;
+          content?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      bot_pending_actions: {
+        Row: {
+          id: string;
+          user_id: string;
+          chat_id: number;
+          tool_name: string;
+          tool_input: Json;
+          expires_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          chat_id: number;
+          tool_name: string;
+          tool_input: Json;
+          expires_at: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          chat_id?: number;
+          tool_name?: string;
+          tool_input?: Json;
+          expires_at?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      bot_state: {
+        Row: {
+          key: string;
+          user_id: string;
+          value: Json;
+          updated_at: string;
+        };
+        Insert: {
+          key: string;
+          user_id: string;
+          value: Json;
+          updated_at?: string;
+        };
+        Update: {
+          key?: string;
+          user_id?: string;
+          value?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -184,3 +272,13 @@ export type TaskWithProject = Task & {
 };
 // Proyecto con conteo de tareas (uso en galeria/tablero).
 export type ProjectWithCount = Project & { task_count?: number; open_count?: number };
+
+// --- Tablas del bot (BLUEPRINT-BOT seccion 4) ---
+
+export type BotMessage = Database["public"]["Tables"]["bot_messages"]["Row"];
+export type BotMessageInsert = Database["public"]["Tables"]["bot_messages"]["Insert"];
+export type BotPendingAction =
+  Database["public"]["Tables"]["bot_pending_actions"]["Row"];
+export type BotPendingActionInsert =
+  Database["public"]["Tables"]["bot_pending_actions"]["Insert"];
+export type BotStateRow = Database["public"]["Tables"]["bot_state"]["Row"];

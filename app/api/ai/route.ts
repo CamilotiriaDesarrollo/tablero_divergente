@@ -1,15 +1,15 @@
 // app/api/ai/route.ts
-// Endpoint del asistente conversacional. Server-side con @anthropic-ai/sdk.
-// La ANTHROPIC_API_KEY vive solo aqui. Requiere sesion (RLS aplica via lib/db).
-// Valida toda entrada. Rate-limit opcional si Upstash esta configurado.
+// Endpoint del asistente conversacional (canal WEB). Server-side con
+// @anthropic-ai/sdk. La ANTHROPIC_API_KEY vive solo aqui. Requiere sesion (RLS
+// aplica via lib/db). Valida toda entrada. Rate-limit opcional si Upstash esta
+// configurado. El bucle tool-use vive en lib/ai/agent.ts, compartido con el bot.
 import { NextResponse, type NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getProjectOptions } from "@/lib/db/projects";
-import { tools } from "@/lib/ai/tools";
 import { buildSystemPrompt } from "@/lib/ai/prompt";
-import { executeTool, type AssistantAction } from "@/lib/ai/execute";
+import { runAssistant } from "@/lib/ai/agent";
 import { toDateColumn } from "@/lib/utils/dates";
 import { checkRateLimit } from "@/lib/ai/rate-limit";
 
@@ -27,9 +27,6 @@ const bodySchema = z.object({
     .min(1)
     .max(30),
 });
-
-const MODEL = process.env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-5";
-const MAX_TOOL_ROUNDS = 6;
 
 export async function POST(req: NextRequest) {
   // 1. Autenticacion: sin sesion no hay asistente.
@@ -90,56 +87,10 @@ export async function POST(req: NextRequest) {
     content: m.content,
   }));
 
-  const actions: AssistantAction[] = [];
-
   try {
-    // 6. Bucle de tool-use manual hasta end_turn (o tope de rondas).
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const response = await client.messages.create({
-        model: MODEL,
-        max_tokens: 2048,
-        thinking: { type: "disabled" },
-        system,
-        tools,
-        messages,
-      });
-
-      if (response.stop_reason !== "tool_use") {
-        const reply = response.content
-          .filter((b): b is Anthropic.TextBlock => b.type === "text")
-          .map((b) => b.text)
-          .join("\n")
-          .trim();
-        return NextResponse.json({
-          reply: reply || "Listo.",
-          actions,
-        });
-      }
-
-      // Ejecutar cada herramienta pedida y devolver todos los resultados juntos.
-      messages.push({ role: "assistant", content: response.content });
-
-      const toolResults: Anthropic.ToolResultBlockParam[] = [];
-      for (const block of response.content) {
-        if (block.type !== "tool_use") continue;
-        const result = await executeTool(block.name, block.input);
-        if (result.action) actions.push(result.action);
-        toolResults.push({
-          type: "tool_result",
-          tool_use_id: block.id,
-          content: result.content,
-          is_error: result.isError ?? false,
-        });
-      }
-      messages.push({ role: "user", content: toolResults });
-    }
-
-    // Se agotaron las rondas de herramientas.
-    return NextResponse.json({
-      reply:
-        "Hice varios pasos pero no termine. Puedes precisar un poco mas lo que necesitas?",
-      actions,
-    });
+    // 6. Bucle de tool-use compartido (lib/ai/agent.ts).
+    const { reply, actions } = await runAssistant({ client, system, messages });
+    return NextResponse.json({ reply, actions });
   } catch (err) {
     const message =
       err instanceof Anthropic.APIError
