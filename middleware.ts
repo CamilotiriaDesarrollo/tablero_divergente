@@ -9,7 +9,10 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Todo salvo estaticos, imagenes, favicon, el manifest y el service worker.
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // Todo salvo estaticos, imagenes, favicon, el manifest, el service worker y
+    // el webhook del bot (/api/telegram trae sus PROPIAS guardas: secret token +
+    // allowlist; Telegram nunca tiene cookies de sesion, redirigirlo a /login
+    // romperia el bot).
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons/|api/telegram|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

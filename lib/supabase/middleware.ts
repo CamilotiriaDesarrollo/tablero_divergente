@@ -8,6 +8,12 @@ import type { Database } from "@/types/db";
 const PUBLIC_PREFIXES = ["/login", "/auth"];
 
 export async function updateSession(request: NextRequest) {
+  // El webhook del bot NUNCA pasa por auth de sesion: tiene sus propias guardas
+  // (secret token + allowlist). Defensa doble por si el matcher raiz cambia.
+  if (request.nextUrl.pathname.startsWith("/api/telegram")) {
+    return NextResponse.next({ request });
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
