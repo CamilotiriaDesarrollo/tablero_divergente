@@ -82,3 +82,33 @@ Build: verificado (ver Fase 0 checkpoint).
 ## Fase 5 — Despliegue  [x]
 - [x] `DEPLOY.md` (Vercel + Supabase, apertura/cierre de registro, migraciones en prod, seed post-signup, prueba de humo, checklist seccion 11).
 - [x] Build final verde tras Fase 4. La app queda lista para desplegar (falta que el dueno cargue sus llaves reales).
+
+---
+
+## Bot de Telegram — Asistente Divergente (BLUEPRINT-BOT.md)
+
+Plan por panel de 9 agentes (4 investigadores + 2 disenos + 3 jueces). Construccion:
+
+### F1-F2 — Contratos + cerebro compartido  [x] (32861b0)
+- [x] lib/db/context.ts (AsyncLocalStorage, default = cookies -> web identica), lib/supabase/admin.ts (service_role server-only, fail-fast).
+- [x] lib/db/{tasks,projects}.ts: helpers via contexto + .eq(user_id) defensivo.
+- [x] lib/ai/agent.ts: bucle tool-use extraido, executor inyectable; ruta web lo consume. prompt.ts canal web|telegram. types/db.ts: tablas del bot.
+
+### F3-F4 — Canal Telegram (texto + voz)  [x] (0a8938f)
+- [x] app/api/telegram/route.ts (webhook: config->secret->allowlist->chat privado, 200 + waitUntil). lib/bot/{env,handler}.ts.
+- [x] lib/telegram/{types,api}.ts (Bot API por fetch, cero deps). lib/db/bot.ts + 0003_bot.sql (RLS + poda pg_cron). lib/ai/transcribe.ts (groq|deepgram). scripts/{env,set-webhook,dev-bot}.ts.
+
+### Smoke test de guardas  [x] (754b749)
+- [x] BUG CRITICO cazado: el middleware de auth redirigia /api/telegram a /login (el bot jamas habria recibido un update en prod). Excluido del matcher + early-return. 8 pruebas de humo verdes.
+
+### F5 — Revision adversaria + arreglos  [x] (2811a7a)
+- [x] 3 revisores (correctitud/seguridad/fidelidad) -> 17 hallazgos. Verificados por el orquestador (verificadores del workflow cayeron por limite de sesion).
+- [x] 11 arreglos aplicados. Altos: historial que empezaba con 'assistant' (400 de Anthropic); dev-bot podia borrar el webhook de produccion (token dev separado); confirmacion que decia "fallo" tras ejecutar. Medios: fuga en grupos (guard de chat privado); dedup sin doble-proceso + cierre en finally; guarda de lint para admin.ts; dev-bot no descarta en 4xx/5xx. Bajos: PK compuesta en bot_state, secret en tiempo constante, comandos deduplicados.
+- [x] Build verde + lint limpio + 9 pruebas de humo (incluye rechazo de grupo).
+
+### Pendiente: FASE 0 (configuracion del dueno)
+Falta solo lo que no puedo hacer yo: aplicar 0003_bot.sql, crear 2 bots en
+BotFather (prod + dev), obtener TELEGRAM_OWNER_ID y OWNER_USER_ID, llave de Groq,
+cargar env vars en Vercel y registrar el webhook. Todo en DEPLOY.md seccion 7.
+Requisito previo compartido con la web: arreglar el registro/login (sospecha:
+toggle de Supabase Auth).
