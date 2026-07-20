@@ -2,10 +2,10 @@
 // PUENTE de desarrollo local: en vez de exponer localhost a internet, hace
 // long polling (getUpdates) contra Telegram y reenvia cada update por POST al
 // endpoint local del webhook, con el mismo header secreto que enviaria Telegram.
-// IMPORTANTE: en local TELEGRAM_BOT_TOKEN debe ser el del BOT DE DESARROLLO
-// (nunca el de produccion). Webhook y getUpdates son excluyentes, y este
-// script BORRA el webhook del bot cuyo token use: con el token de produccion
-// dejarias el bot real sin webhook.
+// SEGURIDAD (BLUEPRINT-BOT sec. 6): usa EXCLUSIVAMENTE TELEGRAM_BOT_TOKEN_DEV
+// (el token del bot de DESARROLLO). Nunca cae al de produccion: este script
+// BORRA el webhook del bot cuyo token use, asi que con el token real dejarias
+// el bot de produccion sin webhook. Si TELEGRAM_BOT_TOKEN_DEV falta, aborta.
 // Uso: npx tsx scripts/dev-bot.ts   (con `npm run dev` corriendo en paralelo)
 import { loadEnvLocal } from "@/scripts/env";
 import { deleteWebhook, getMe, getUpdates } from "@/lib/telegram/api";
@@ -20,10 +20,14 @@ function sleep(ms: number): Promise<void> {
 let running = true;
 
 /**
- * Reenvia un update al webhook local. Si el servidor esta apagado (el fetch
- * lanza), reintenta el MISMO update cada 3 s hasta entregarlo: asi no se
- * pierde ningun mensaje mientras arranca `npm run dev`.
- * Devuelve true si se entrego (cualquier status HTTP cuenta como entregado).
+ * Reenvia un update al webhook local.
+ * - Si el servidor esta apagado (el fetch lanza), reintenta el MISMO update
+ *   cada 3 s hasta que responda: no se pierde nada mientras arranca `npm run dev`.
+ * - Solo un 2xx cuenta como ENTREGADO (avanza el offset). Un 4xx/5xx (p. ej.
+ *   401 por secret distinto, 503 por bot sin configurar en el server) NO se da
+ *   por entregado: se detiene el puente con un error claro para no descartar el
+ *   mensaje en silencio ni avanzar el offset sobre algo que el webhook rechazo.
+ * Devuelve true si el webhook acepto el update (2xx).
  */
 async function forwardUpdate(
   update: TelegramUpdate,
@@ -31,8 +35,9 @@ async function forwardUpdate(
   secret: string,
 ): Promise<boolean> {
   while (running) {
+    let res: Response;
     try {
-      const res = await fetch(targetUrl, {
+      res = await fetch(targetUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -40,14 +45,24 @@ async function forwardUpdate(
         },
         body: JSON.stringify(update),
       });
-      console.log(`update ${update.update_id} -> ${res.status}`);
-      return true;
     } catch {
       console.warn(
         `update ${update.update_id}: el servidor local no responde; reintento en 3 s...`,
       );
       await sleep(3000);
+      continue;
     }
+    if (res.ok) {
+      console.log(`update ${update.update_id} -> ${res.status} OK`);
+      return true;
+    }
+    // El webhook respondio pero rechazo el update: no avanzar el offset.
+    console.error(
+      `update ${update.update_id} -> ${res.status}: el webhook local lo rechazo. ` +
+        "Revisa que el secret y las env vars del bot coincidan entre .env.local y el server. Deteniendo el puente.",
+    );
+    running = false;
+    return false;
   }
   // Ctrl+C durante el reintento: no se entrego; Telegram lo reenviara al volver.
   return false;
@@ -56,9 +71,23 @@ async function forwardUpdate(
 async function main(): Promise<void> {
   loadEnvLocal();
 
+  // Token del bot de DESARROLLO, obligatorio y separado del de produccion.
+  const devToken = process.env.TELEGRAM_BOT_TOKEN_DEV;
+  if (!devToken) {
+    console.error(
+      "Falta TELEGRAM_BOT_TOKEN_DEV en .env.local. Crea un bot de DESARROLLO\n" +
+        "aparte en BotFather (nunca uses el token de produccion aqui): este script\n" +
+        "borra el webhook del bot cuyo token use.",
+    );
+    process.exit(1);
+  }
+  // El cliente de lib/telegram/api lee TELEGRAM_BOT_TOKEN: lo apuntamos al de dev
+  // SOLO en este proceso, para que jamas se toque el bot de produccion.
+  process.env.TELEGRAM_BOT_TOKEN = devToken;
+
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (!process.env.TELEGRAM_BOT_TOKEN || !secret) {
-    console.error("Faltan TELEGRAM_BOT_TOKEN o TELEGRAM_WEBHOOK_SECRET en .env.local.");
+  if (!secret) {
+    console.error("Falta TELEGRAM_WEBHOOK_SECRET en .env.local.");
     process.exit(1);
   }
 

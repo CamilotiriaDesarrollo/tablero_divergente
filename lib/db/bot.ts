@@ -33,14 +33,20 @@ async function requireUserId(): Promise<string> {
 /** Resultado de registrar un update entrante (deduplicacion del webhook). */
 export type RegisterResult =
   | { kind: "new"; messageId: string }
-  | { kind: "retry"; messageId: string }
   | { kind: "duplicate" };
 
 /**
  * Registra un update de Telegram con dedupe por telegram_update_id:
  * - new: primera vez que llega (fila insertada, status 'processing').
- * - retry: ya existe y sigue 'processing' (reintento de un update a medias).
- * - duplicate: ya existe y esta 'done' (no volver a procesar).
+ * - duplicate: ya existia (sea 'processing' u 'done'). NO se reprocesa.
+ *
+ * Decision de diseno (revision adversaria): ante un conflicto tratamos SIEMPRE
+ * como duplicado, incluso si la fila sigue 'processing'. En serverless, dos
+ * entregas del mismo update podrian correr en paralelo; reprocesar duplicaria
+ * tareas (crear_tarea no es idempotente). Preferimos "nunca duplicar" sobre
+ * "nunca perder": si un procesamiento muere a medias, ese mensaje se pierde y
+ * el dueno lo reenvia (nuevo update_id). Para un bot personal es el intercambio
+ * correcto. El status 'processing' se cierra siempre en el `finally` del handler.
  */
 export async function registerIncomingUpdate(params: {
   updateId: number;
@@ -66,21 +72,7 @@ export async function registerIncomingUpdate(params: {
     .select("id");
   if (error) throw error;
   if (data && data.length > 0) return { kind: "new", messageId: data[0].id };
-
-  // Conflicto: el update ya estaba registrado. Decidir por su status.
-  let query = supabase
-    .from("bot_messages")
-    .select("id, status")
-    .eq("telegram_update_id", params.updateId);
-  const uid = ownerId();
-  if (uid) query = query.eq("user_id", uid);
-  const { data: existing, error: existingError } = await query.maybeSingle();
-  if (existingError) throw existingError;
-  // Si desaparecio entre el upsert y el select (poda), tratar como duplicado.
-  if (!existing) return { kind: "duplicate" };
-  if (existing.status === "processing") {
-    return { kind: "retry", messageId: existing.id };
-  }
+  // Conflicto: ya existia. Cualquier estado -> duplicado (no reprocesar).
   return { kind: "duplicate" };
 }
 
@@ -242,6 +234,7 @@ export async function setPaused(paused: boolean): Promise<void> {
   const supabase = await client();
   const userId = await requireUserId();
   // updated_at explicito: bot_state no tiene trigger de set_updated_at.
+  // onConflict compuesto (user_id, key): el estado esta aislado por dueno.
   const { error } = await supabase.from("bot_state").upsert(
     {
       key: "paused",
@@ -249,7 +242,7 @@ export async function setPaused(paused: boolean): Promise<void> {
       value: paused,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "key" },
+    { onConflict: "user_id,key" },
   );
   if (error) throw error;
 }

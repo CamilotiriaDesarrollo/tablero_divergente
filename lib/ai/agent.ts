@@ -21,6 +21,37 @@ export interface AssistantResult {
   actions: AssistantAction[];
 }
 
+/**
+ * Normaliza los turnos INICIALES para la API de Anthropic, que exige que el
+ * primer mensaje sea 'user' y no tolera turnos consecutivos del mismo rol.
+ * El historial del bot puede violar ambas cosas (las confirmaciones por boton
+ * guardan mensajes 'assistant' sueltos). Descarta los 'assistant' iniciales y
+ * fusiona turnos consecutivos del mismo rol. Solo toca contenido de tipo string
+ * (los bloques de tool-use/tool-result se anaden despues, ya alternados).
+ */
+function normalizeInitialTurns(
+  input: Anthropic.MessageParam[],
+): Anthropic.MessageParam[] {
+  const out: Anthropic.MessageParam[] = [];
+  for (const msg of input) {
+    // Ignorar 'assistant' hasta que haya aparecido el primer 'user'.
+    if (out.length === 0 && msg.role !== "user") continue;
+    const prev = out[out.length - 1];
+    if (
+      prev &&
+      prev.role === msg.role &&
+      typeof prev.content === "string" &&
+      typeof msg.content === "string"
+    ) {
+      // Fusionar turnos consecutivos del mismo rol.
+      prev.content = `${prev.content}\n${msg.content}`;
+      continue;
+    }
+    out.push({ role: msg.role, content: msg.content });
+  }
+  return out;
+}
+
 export type ToolExecutor = (
   name: string,
   input: unknown,
@@ -39,8 +70,13 @@ export async function runAssistant(params: {
 }): Promise<AssistantResult> {
   const { client, system } = params;
   const execute = params.execute ?? executeTool;
-  const messages: Anthropic.MessageParam[] = [...params.messages];
+  // Sanea el historial antes del bucle (primer turno 'user', sin rol repetido).
+  const messages: Anthropic.MessageParam[] = normalizeInitialTurns(params.messages);
   const actions: AssistantAction[] = [];
+  // Si tras normalizar no queda nada (historial corrupto), no hay nada que hacer.
+  if (messages.length === 0) {
+    return { reply: "No entendi el mensaje. Puedes repetirlo?", actions };
+  }
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await client.messages.create({

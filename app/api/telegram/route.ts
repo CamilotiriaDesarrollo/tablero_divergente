@@ -8,6 +8,7 @@
 // con los reintentos de Telegram (~10-60 s). El dedup idempotente vive en el
 // handler (bot_messages.telegram_update_id).
 import { NextResponse, type NextRequest } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { waitUntil } from "@vercel/functions";
 import { isBotConfigured, getBotEnv, botConfigMissing } from "@/lib/bot/env";
 import { handleTelegramUpdate } from "@/lib/bot/handler";
@@ -18,6 +19,15 @@ export const runtime = "nodejs";
 // 6 rondas de tools) queda holgado.
 export const maxDuration = 300;
 
+/** Comparacion de tiempo constante del secret (higiene anti-timing). */
+function secretMatches(received: string | null, expected: string): boolean {
+  if (received === null) return false;
+  const a = Buffer.from(received);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 export async function POST(req: NextRequest) {
   // 1. Configuracion completa o nada (los detalles solo al log del servidor).
   if (!isBotConfigured()) {
@@ -26,9 +36,9 @@ export async function POST(req: NextRequest) {
   }
   const env = getBotEnv();
 
-  // 2. Firma del webhook.
+  // 2. Firma del webhook (comparacion de tiempo constante).
   const secret = req.headers.get("x-telegram-bot-api-secret-token");
-  if (secret !== env.webhookSecret) {
+  if (!secretMatches(secret, env.webhookSecret)) {
     return new NextResponse(null, { status: 401 });
   }
 
@@ -50,6 +60,13 @@ export async function POST(req: NextRequest) {
   }
   if (!update.message && !update.callback_query) {
     // edited_message y demas tipos se ignoran a proposito (no reprocesar ediciones).
+    return NextResponse.json({ ok: true });
+  }
+
+  // Solo chat PRIVADO del dueno: si el bot es anadido a un grupo, un comando
+  // del dueno alli NO debe filtrar sus datos al grupo (privacy mode no basta).
+  const chat = update.message?.chat ?? update.callback_query?.message?.chat;
+  if (chat && chat.type !== "private") {
     return NextResponse.json({ ok: true });
   }
 

@@ -1,8 +1,8 @@
 // lib/bot/handler.ts
 // Corazon del bot: procesa un update de Telegram YA autenticado (la ruta valida
-// secret + allowlist antes de llamar aqui; este modulo re-verifica por defensa
-// en profundidad). Todo corre dentro de runWithDbContext con el cliente admin y
-// la identidad fija del dueno (BLUEPRINT-BOT seccion 3).
+// secret + allowlist + chat privado antes de llamar aqui; este modulo re-verifica
+// por defensa en profundidad). Todo corre dentro de runWithDbContext con el
+// cliente admin y la identidad fija del dueno (BLUEPRINT-BOT seccion 3).
 //
 // Filosofia: los datos no deciden, las personas si. Capturar y consultar se
 // ejecuta directo; completar/actualizar se convierte en PROPUESTA que el dueno
@@ -80,13 +80,40 @@ async function handleMessage(
   message: TelegramMessage,
   env: BotEnv,
 ): Promise<void> {
-  // Defensa en profundidad: la ruta ya filtro, pero nunca confiar en un solo punto.
+  // Defensa en profundidad: la ruta ya filtro por dueno y chat privado.
   if (!message.from || message.from.id !== env.ownerId) return;
+  if (message.chat.type !== "private") return;
   const chatId = message.chat.id;
   const text = message.text?.trim();
 
+  // Dedup PRIMERO, para TODO (incluidos comandos): una reentrega del mismo
+  // update jamas re-ejecuta nada (ni una tarea, ni un /pausa). Cualquier
+  // conflicto es duplicado; no se reprocesa (ver lib/db/bot.ts).
+  let messageId: string;
   try {
-    // Comandos de control (sin LLM, sin persistencia de historial).
+    const registered = await registerIncomingUpdate({
+      updateId,
+      chatId,
+      content: text ?? (message.voice ? "[nota de voz]" : "[mensaje no soportado]"),
+    });
+    if (registered.kind === "duplicate") {
+      await sendMessage(
+        chatId,
+        "Ese mensaje ya lo estoy procesando o ya lo procese. Revisa el tablero.",
+      );
+      return;
+    }
+    messageId = registered.messageId;
+  } catch (err) {
+    console.error("[bot:register]", err);
+    await safeSend(chatId, "No pude registrar tu mensaje. Intenta de nuevo.");
+    return;
+  }
+
+  // Desde aqui, pase lo que pase, la fila 'processing' se cierra en el finally:
+  // nunca queda un update colgado para siempre.
+  try {
+    // Comandos de control (ya deduplicados; idempotentes).
     if (text === "/start") {
       await sendMessage(
         chatId,
@@ -111,39 +138,22 @@ async function handleMessage(
 
     // Solo texto o nota de voz.
     if (!text && !message.voice) {
-      await sendMessage(
-        chatId,
-        "Por ahora solo entiendo texto y notas de voz.",
-      );
+      await sendMessage(chatId, "Por ahora solo entiendo texto y notas de voz.");
       return;
     }
 
-    // Dedup idempotente ANTES de cualquier efecto (BLUEPRINT-BOT seccion 4):
-    // duplicado terminado -> aviso; reintento a medias -> se reprocesa.
-    const registered = await registerIncomingUpdate({
-      updateId,
-      chatId,
-      content: text ?? "[nota de voz]",
-    });
-    if (registered.kind === "duplicate") {
-      await sendMessage(chatId, "Ese mensaje ya lo procese. Revisa el tablero.");
-      return;
-    }
-    const messageId = registered.messageId;
-
-    // Frenos de gasto: tope diario + rate limit (Upstash si esta configurado).
+    // Frenos de gasto: tope diario + rate limit (Upstash si esta configurado;
+    // el tope diario es el freno duro que NO depende de Upstash).
     if ((await countAssistantMessagesLast24h(chatId)) >= DAILY_LIMIT) {
       await sendMessage(
         chatId,
         "Alcance el tope diario de mensajes del asistente. Manana sigo; si es urgente usa el tablero web.",
       );
-      await markMessageDone(messageId);
       return;
     }
     const limit = await checkRateLimit(`bot:${env.ownerUserId}`);
     if (!limit.success) {
       await sendMessage(chatId, "Demasiados mensajes seguidos. Dame un momento y repite.");
-      await markMessageDone(messageId);
       return;
     }
 
@@ -156,7 +166,6 @@ async function handleMessage(
       const voice = message.voice;
       if (voice.duration < MIN_VOICE_SECONDS) {
         await sendMessage(chatId, "La nota llego casi vacia. Repitela, por favor.");
-        await markMessageDone(messageId);
         return;
       }
       if (voice.duration > MAX_VOICE_SECONDS) {
@@ -164,7 +173,6 @@ async function handleMessage(
           chatId,
           "El audio supera los 3 minutos. Mandame una nota mas corta o escribeme el resumen.",
         );
-        await markMessageDone(messageId);
         return;
       }
       if (!isSttConfigured()) {
@@ -172,7 +180,6 @@ async function handleMessage(
           chatId,
           "La transcripcion de voz no esta configurada (falta la llave de STT). Escribeme por texto mientras tanto.",
         );
-        await markMessageDone(messageId);
         return;
       }
       const file = await downloadFile(voice.file_id);
@@ -193,7 +200,6 @@ async function handleMessage(
         chatId,
         "El asistente no esta configurado (falta ANTHROPIC_API_KEY en el servidor).",
       );
-      await markMessageDone(messageId);
       return;
     }
 
@@ -261,16 +267,15 @@ async function handleMessage(
 
     await sendMessage(chatId, finalReply, { replyMarkup });
     await saveAssistantMessage({ chatId, content: finalReply });
-    await markMessageDone(messageId);
   } catch (err) {
     console.error("[bot:handleMessage]", err);
+    await safeSend(chatId, "No pude procesar eso. Intenta de nuevo en un momento.");
+  } finally {
+    // Cerrar SIEMPRE la fila 'processing': ni exito ni error la dejan colgada.
     try {
-      await sendMessage(
-        chatId,
-        "No pude procesar eso. Intenta de nuevo en un momento.",
-      );
-    } catch {
-      // Si ni siquiera se puede responder, queda en el log.
+      await markMessageDone(messageId);
+    } catch (err) {
+      console.error("[bot:markMessageDone]", err);
     }
   }
 }
@@ -281,70 +286,102 @@ async function handleCallback(
   cb: TelegramCallbackQuery,
   env: BotEnv,
 ): Promise<void> {
-  // Defensa en profundidad: el callback tambien es solo del dueno.
+  // Defensa en profundidad: el callback tambien es solo del dueno y de su chat privado.
   if (cb.from.id !== env.ownerId) {
-    await answerCallbackQuery(cb.id);
+    await answerCallbackQuery(cb.id).catch(() => {});
     return;
   }
   const chatId = cb.message?.chat.id ?? env.ownerId;
 
-  try {
-    const match = cb.data?.match(CALLBACK_RE);
-    if (!match) {
-      await answerCallbackQuery(cb.id);
-      return;
-    }
-    const [, actionId, verdict] = match;
-
-    if (verdict === "no") {
-      await discardPendingAction(actionId);
-      await answerCallbackQuery(cb.id, "Descartado");
-      await appendToProposal(cb, chatId, "Descartado. No toque nada.");
-      await saveAssistantMessage({ chatId, content: "Propuesta descartada por el dueno." });
-      return;
-    }
-
-    // Confirmar: tomar (y borrar) la accion pendiente; expira a los 10 min.
-    const pending = await takePendingAction(actionId, chatId);
-    if (!pending) {
-      await answerCallbackQuery(cb.id, "Expiro");
-      await appendToProposal(
-        cb,
-        chatId,
-        "La propuesta expiro o ya no existe. Pidemelo de nuevo.",
-      );
-      return;
-    }
-
-    // Ejecucion REAL de la herramienta confirmada (zod valida dentro).
-    const result = await executeTool(pending.toolName, pending.toolInput);
-    await answerCallbackQuery(cb.id, result.isError ? "Fallo" : "Hecho");
-    const note = result.isError
-      ? `No se pudo: ${result.content}`
-      : `Hecho: ${result.content}`;
-    await appendToProposal(cb, chatId, note);
-    await saveAssistantMessage({ chatId, content: note });
-  } catch (err) {
-    console.error("[bot:handleCallback]", err);
-    try {
-      await answerCallbackQuery(cb.id, "Error");
-      await sendMessage(chatId, "No pude ejecutar la confirmacion. Intenta de nuevo.");
-    } catch {
-      // log arriba
-    }
+  const match = cb.data?.match(CALLBACK_RE);
+  if (!match) {
+    await answerCallbackQuery(cb.id).catch(() => {});
+    return;
   }
+  const [, actionId, verdict] = match;
+
+  if (verdict === "no") {
+    try {
+      await discardPendingAction(actionId);
+    } catch (err) {
+      console.error("[bot:discardPending]", err);
+    }
+    await answerCallbackQuery(cb.id, "Descartado").catch(() => {});
+    await appendToProposal(cb, chatId, "Descartado. No toque nada.");
+    await saveAssistantMessage({
+      chatId,
+      content: "Propuesta descartada por el dueno.",
+    }).catch(() => {});
+    return;
+  }
+
+  // Confirmar: tomar (y borrar) la accion pendiente; expira a los 10 min.
+  let pending: { toolName: string; toolInput: unknown } | null;
+  try {
+    pending = await takePendingAction(actionId, chatId);
+  } catch (err) {
+    console.error("[bot:takePending]", err);
+    await answerCallbackQuery(cb.id, "Error").catch(() => {});
+    await appendToProposal(cb, chatId, "No pude leer la propuesta. Intenta de nuevo.");
+    return;
+  }
+  if (!pending) {
+    await answerCallbackQuery(cb.id, "Expiro").catch(() => {});
+    await appendToProposal(
+      cb,
+      chatId,
+      "La propuesta expiro o ya no existe. Pidemelo de nuevo.",
+    );
+    return;
+  }
+
+  // Ejecucion REAL de la herramienta confirmada (zod valida dentro). El
+  // resultado de la mutacion NUNCA se enmascara por un fallo posterior de
+  // formato/edicion: reportar es best-effort (appendToProposal no lanza).
+  let note: string;
+  try {
+    const result = await executeTool(pending.toolName, pending.toolInput);
+    note = result.isError ? `No se pudo: ${result.content}` : `Hecho: ${result.content}`;
+    await answerCallbackQuery(cb.id, result.isError ? "Fallo" : "Hecho").catch(() => {});
+  } catch (err) {
+    console.error("[bot:callback:execute]", err);
+    note = "No se pudo completar la accion. Intenta de nuevo.";
+    await answerCallbackQuery(cb.id, "Error").catch(() => {});
+  }
+  await appendToProposal(cb, chatId, note);
+  await saveAssistantMessage({ chatId, content: note }).catch(() => {});
 }
 
-/** Edita el mensaje de la propuesta anadiendo el desenlace (y quita los botones). */
+/**
+ * Edita el mensaje de la propuesta anadiendo el desenlace (y quita los botones).
+ * BEST-EFFORT: nunca lanza. Si el texto combinado excede el limite o la edicion
+ * falla, manda el desenlace como mensaje nuevo (sendMessage parte lo largo).
+ * Asi un fallo de formato jamas se confunde con "no se ejecuto la accion".
+ */
 async function appendToProposal(
   cb: TelegramCallbackQuery,
   chatId: number,
   note: string,
 ): Promise<void> {
   const original = cb.message;
-  if (original?.text != null) {
-    await editMessageText(chatId, original.message_id, `${original.text}\n\n${note}`);
-  } else {
-    await sendMessage(chatId, note);
+  const combined =
+    original?.text != null ? `${original.text}\n\n${note}` : note;
+  if (original?.text != null && combined.length <= 4096) {
+    try {
+      await editMessageText(chatId, original.message_id, combined);
+      return;
+    } catch (err) {
+      console.warn("[bot:editMessageText]", err);
+    }
+  }
+  await safeSend(chatId, note);
+}
+
+/** sendMessage que nunca lanza (para caminos de error). */
+async function safeSend(chatId: number, text: string): Promise<void> {
+  try {
+    await sendMessage(chatId, text);
+  } catch (err) {
+    console.error("[bot:safeSend]", err);
   }
 }

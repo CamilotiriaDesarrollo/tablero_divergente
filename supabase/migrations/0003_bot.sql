@@ -41,12 +41,15 @@ create table if not exists public.bot_pending_actions (
 -- ---------------------------------------------------------------------------
 -- Tabla: public.bot_state
 -- Estado clave/valor del bot (p. ej. key 'paused' con value jsonb true/false).
+-- PK compuesta (user_id, key): el estado (incluido el kill switch /pausa) queda
+-- AISLADO por dueno, no globalmente por 'key'.
 -- ---------------------------------------------------------------------------
 create table if not exists public.bot_state (
-  key        text primary key,
+  key        text not null,
   user_id    uuid not null references auth.users (id) on delete cascade,
   value      jsonb not null,
-  updated_at timestamptz default now()
+  updated_at timestamptz default now(),
+  primary key (user_id, key)
 );
 
 -- ---------------------------------------------------------------------------
