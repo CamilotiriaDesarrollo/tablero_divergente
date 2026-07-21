@@ -1,17 +1,18 @@
 // app/api/ai/route.ts
 // Endpoint del asistente conversacional (canal WEB). Server-side con
-// @anthropic-ai/sdk. La ANTHROPIC_API_KEY vive solo aqui. Requiere sesion (RLS
-// aplica via lib/db). Valida toda entrada. Rate-limit opcional si Upstash esta
-// configurado. El bucle tool-use vive en lib/ai/agent.ts, compartido con el bot.
+// @anthropic-ai/sdk. La ANTHROPIC_API_KEY vive solo aqui. MODO DUENO UNICO: sin
+// login, opera como el dueno fijo (lib/db usa OWNER_USER_ID). Valida toda
+// entrada. Rate-limit opcional si Upstash esta configurado. El bucle tool-use
+// vive en lib/ai/agent.ts, compartido con el bot.
 import { NextResponse, type NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
 import { getProjectOptions } from "@/lib/db/projects";
 import { buildSystemPrompt } from "@/lib/ai/prompt";
 import { runAssistant } from "@/lib/ai/agent";
 import { toDateColumn } from "@/lib/utils/dates";
 import { checkRateLimit } from "@/lib/ai/rate-limit";
+import { OWNER_USER_ID } from "@/lib/owner";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -29,19 +30,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  // 1. Autenticacion: sin sesion no hay asistente.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: "Necesitas iniciar sesion para usar el asistente." },
-      { status: 401 },
-    );
-  }
-
-  // 2. Llave configurada?
+  // 1. Llave configurada? (Modo dueno unico: sin login que verificar.)
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey || apiKey.includes("placeholder")) {
     return NextResponse.json(
@@ -53,8 +42,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 3. Rate-limit por usuario (solo si Upstash esta configurado).
-  const limit = await checkRateLimit(user.id);
+  // 2. Rate-limit del dueno (solo si Upstash esta configurado).
+  const limit = await checkRateLimit(`web:${OWNER_USER_ID}`);
   if (!limit.success) {
     return NextResponse.json(
       { error: "Demasiadas solicitudes. Intenta de nuevo en un momento." },

@@ -62,7 +62,7 @@ agregalas desde ahi.
    | `ANTHROPIC_API_KEY` | tu llave de Anthropic |
    | `ANTHROPIC_MODEL` | `claude-sonnet-5` (opcional) |
    | `NEXT_PUBLIC_APP_NAME` | `Tablero Divergente` (o el nombre que quieras) |
-   | `NEXT_PUBLIC_ALLOW_SIGNUP` | `true` solo para crear tu cuenta; luego `false` |
+   | `OWNER_USER_ID` | `00000000-0000-4000-8000-000000000001` (dueño fijo) |
    | `UPSTASH_REDIS_REST_URL` | opcional, para rate-limit del asistente |
    | `UPSTASH_REDIS_REST_TOKEN` | opcional |
 
@@ -70,25 +70,24 @@ agregalas desde ahi.
 
 ---
 
-## 4. Registrarte y sembrar tus datos
+## 4. Modo dueño único (sin login) y sembrar tus datos
 
-1. **Abre el registro solo para tu cuenta.** Pon `NEXT_PUBLIC_ALLOW_SIGNUP=true`
-   en Vercel y redepliega. En Supabase, deja habilitado "Allow new users to sign up".
-2. Abre la URL de produccion (`/login`), usa "Crea tu cuenta" con tu correo, entra.
-3. **Cierra el registro.** Vuelve `NEXT_PUBLIC_ALLOW_SIGNUP=false` (redeploy) y en
-   Supabase desactiva "Allow new users to sign up". Asi nadie mas puede registrarse
-   ni abusar de la llave del asistente. (Recomendado ademas: configurar Upstash para
-   rate-limit del endpoint de IA.)
-4. Para cargar los proyectos y tareas de arranque, corre el seed **despues** de
-   registrarte (necesita tu usuario en `auth.users`):
+La app **no tiene login**: siempre opera como el dueño fijo `OWNER_USER_ID`
+(`lib/owner.ts`, por defecto `00000000-0000-4000-8000-000000000001`). No hay que
+registrarse ni crear usuarios en Supabase.
 
-   ```bash
-   # con la CLI enlazada al proyecto
-   psql "$DATABASE_URL" -f supabase/seed.sql
-   ```
+1. Aplica la migración **`0004_single_owner.sql`** (con las demás, o en el Editor SQL).
+   Suelta las FK a `auth.users`, desactiva RLS y concede permisos a la anon key.
+2. Corre el **seed** (Editor SQL o `psql ... -f supabase/seed.sql`). Es idempotente y
+   usa el `OWNER_USER_ID` fijo; siembra tus proyectos y tareas de arranque.
+3. Abre la app: entra directo a Inicio, sin pantalla de acceso.
 
-   o pega el contenido de `supabase/seed.sql` en el Editor SQL del panel. El seed es
-   idempotente y resuelve tu usuario automaticamente (el primero registrado).
+> ⚠️ **Seguridad al desplegar en público.** Sin login, cualquiera con la URL opera
+> como tú, y con RLS desactivada la anon key puede leer/escribir tu base directamente.
+> **En localhost no hay exposición.** Antes de publicar en una URL de internet,
+> antepón una barrera: por ejemplo Vercel *Deployment Protection* (password), o un
+> gateo simple por contraseña en un middleware. Pídelo y lo agrego. El **bot** de
+> Telegram NO se ve afectado: tiene su propia allowlist.
 
 ---
 

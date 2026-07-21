@@ -28,8 +28,8 @@ App personal de gestión (proyectos, tareas, ideas, calendario) de un solo dueñ
 
 ## Seguridad (obligatorio)
 
-- RLS activo en `projects` y `tasks`. Toda fila: `user_id = auth.uid()`.
-- `SUPABASE_SERVICE_ROLE_KEY` y `ANTHROPIC_API_KEY` viven solo en el server. Nunca llegan al cliente ni a un `NEXT_PUBLIC_*`.
+- **Modo dueño único (sin login).** La app no tiene autenticación: siempre opera como el dueño fijo `OWNER_USER_ID` (`lib/owner.ts`). RLS desactivada (migración `0004`), la anon key opera sin sesión. Toda fila lleva ese `user_id` y `lib/db` filtra por él. **En local es seguro; una URL pública queda ABIERTA** — anteponer una barrera antes de desplegar (ver DEPLOY.md). El bot mantiene su propia seguridad (allowlist de Telegram), independiente de esto.
+- `SUPABASE_SERVICE_ROLE_KEY` (solo el bot) y `ANTHROPIC_API_KEY` viven solo en el server. Nunca llegan al cliente ni a un `NEXT_PUBLIC_*`.
 - El endpoint `/api/ai` valida toda entrada. Rate-limit si Upstash está configurado.
 - Cero datos personales en parámetros de URL.
 

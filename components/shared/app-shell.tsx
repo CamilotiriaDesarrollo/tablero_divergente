@@ -13,7 +13,6 @@ import { NAV_ITEMS } from "@/lib/nav";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
-import { SignOutButton } from "@/components/shared/sign-out-button";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { ChatPanel } from "@/components/assistant/chat-panel";
 import { RealtimeRefresher } from "@/components/shared/realtime-refresher";
@@ -52,11 +51,9 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 
 export function AppShell({
   children,
-  userEmail,
   userId,
 }: {
   children: React.ReactNode;
-  userEmail: string;
   userId: string;
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -87,14 +84,9 @@ export function AppShell({
           </span>
         </Link>
         <NavLinks />
-        <div className="mt-auto space-y-2 border-t border-border pt-3">
-          <div className="flex items-center justify-between px-2">
-            <span className="truncate text-xs text-muted-foreground" title={userEmail}>
-              {userEmail}
-            </span>
-            <ThemeToggle />
-          </div>
-          <SignOutButton />
+        <div className="mt-auto flex items-center justify-between border-t border-border px-2 pt-3">
+          <span className="text-xs text-muted-foreground">Tu espacio</span>
+          <ThemeToggle />
         </div>
       </aside>
 
@@ -115,9 +107,8 @@ export function AppShell({
             <SheetContent side="left" className="w-64 p-4">
               <SheetTitle className="mb-4 font-heading">{APP_NAME}</SheetTitle>
               <NavLinks onNavigate={() => setMobileNav(false)} />
-              <div className="mt-6 space-y-2 border-t border-border pt-3">
+              <div className="mt-6 border-t border-border pt-3">
                 <ThemeToggle />
-                <SignOutButton />
               </div>
             </SheetContent>
           </Sheet>

@@ -1,26 +1,20 @@
 -- seed.sql
 -- Tablero Divergente — datos reales de arranque (BLUEPRINT.md sección 4).
 --
--- App de un solo dueño: el seed corre DESPUÉS de que el dueño se registre.
--- Resuelve el user_id del PRIMER usuario existente en auth.users.
+-- MODO DUEÑO ÚNICO (sin login): el dueño es el uuid fijo de lib/owner.ts.
+-- No requiere ningún usuario en auth.users. Correr DESPUÉS de 0004_single_owner.sql.
 -- Idempotente: usa "where not exists" por (user_id, name/title), así que se
 -- puede correr varias veces sin duplicar y sin borrar datos que ya tengas.
 
 do $$
 declare
-  owner uuid;
+  owner uuid := '00000000-0000-4000-8000-000000000001';
   p_divergente uuid;
   p_mincultura uuid;
   p_pnmc       uuid;
   p_eventos    uuid;
   p_ministerio uuid;
 begin
-  -- 1) Dueño = primer usuario registrado.
-  select id into owner from auth.users order by created_at asc limit 1;
-  if owner is null then
-    raise notice 'Sin usuario: regístrate primero, luego corre el seed.';
-    return;
-  end if;
 
   -- 2) Proyectos activos (banco de ideas = status 'idea').
   insert into public.projects (user_id, name, status, icon, color, position)

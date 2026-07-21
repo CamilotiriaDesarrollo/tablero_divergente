@@ -1,24 +1,23 @@
 // lib/db/context.ts
 // Contexto inyectable de acceso a datos. Permite que lib/db/* funcione en DOS
 // mundos sin cambiar firmas:
-//   - Web (default): cliente por cookies de lib/supabase/server + identidad por
-//     sesion (auth.getUser). RLS protege. Comportamiento identico al historico.
-//   - Bot (runWithDbContext): cliente service_role + user_id fijo del dueno.
-//     Como service_role bypassa RLS, lib/db anade .eq('user_id', ownerId()) como
-//     defensa en profundidad en lecturas y mutaciones.
-// TODO: si la app deja de ser de un solo dueno, revisar TODAS las consultas que
-// corren bajo contexto bot (hoy asumen que cada fila visible es del dueno).
+//   - Web (default): MODO DUENO UNICO. Cliente por cookies (anon) + identidad
+//     fija OWNER_USER_ID (lib/owner.ts). No hay login: la app siempre actua como
+//     el dueno. lib/db anade .eq('user_id', OWNER_USER_ID) en cada consulta.
+//   - Bot (runWithDbContext): cliente service_role + el mismo user_id del dueno.
+// En ambos casos ownerId() devuelve el uuid del dueno, y lib/db filtra por el.
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/db";
 import { createClient } from "@/lib/supabase/server";
+import { OWNER_USER_ID } from "@/lib/owner";
 
 export interface DbContext {
   /** Cliente de Supabase a usar en esta ejecucion. */
   getClient(): Promise<SupabaseClient<Database>>;
   /**
-   * uuid del dueno cuando la identidad NO viene de la sesion (bot).
-   * null = resolver por sesion de cookies (web, comportamiento historico).
+   * uuid del dueno con el que operan todas las consultas/mutaciones.
+   * En modo dueno unico siempre esta definido (web y bot).
    */
   userId: string | null;
 }
@@ -26,9 +25,9 @@ export interface DbContext {
 const storage = new AsyncLocalStorage<DbContext>();
 
 const defaultContext: DbContext = {
-  // La web: cliente por cookies, identidad por sesion. Identico a antes.
+  // La web en modo dueno unico: cliente por cookies (anon), identidad FIJA.
   getClient: () => createClient() as unknown as Promise<SupabaseClient<Database>>,
-  userId: null,
+  userId: OWNER_USER_ID,
 };
 
 /** Contexto activo (bot si estamos dentro de runWithDbContext; web si no). */
