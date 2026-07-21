@@ -15,40 +15,27 @@ export const BOARD_STATUSES: TaskStatus[] = ["todo", "en_progreso", "hecho"];
 /** Estados a los que se puede mover una tarea desde el menu de acciones. */
 export const MOVABLE_STATUSES: TaskStatus[] = ["todo", "en_progreso", "hecho"];
 
-/** Tipos de tarea (multi) de la plantilla (BLUEPRINT seccion 4). */
-export const TASK_TYPE_OPTIONS = [
-  "video",
-  "publicaciones",
-  "estudio",
-  "produccion",
-  "investigacion",
-  "presentacion",
-] as const;
-
-export const TASK_TYPE_LABEL: Record<string, string> = {
-  video: "Video",
-  publicaciones: "Publicaciones",
-  estudio: "Estudio",
-  produccion: "Produccion",
-  investigacion: "Investigacion",
-  presentacion: "Presentacion",
-};
-
-/** Categorias base (extensible) de la plantilla (BLUEPRINT seccion 4). */
+/** Categoria de la tarea: intencion con la que se hace (el dueno lo pidio asi). */
 export const CATEGORY_OPTIONS = [
+  "productividad",
   "aprendizaje",
-  "redes",
-  "cursos",
-  "video",
-  "conferencias",
+  "disfrute",
+  "inspiracional",
 ] as const;
 
 export const CATEGORY_LABEL: Record<string, string> = {
+  productividad: "Productividad",
   aprendizaje: "Aprendizaje",
-  redes: "Redes",
-  cursos: "Cursos",
-  video: "Video",
-  conferencias: "Conferencias",
+  disfrute: "Disfrute",
+  inspiracional: "Inspiracional",
+};
+
+/** Emoji por categoria (senal sutil en la UI, nunca decision). */
+export const CATEGORY_EMOJI: Record<string, string> = {
+  productividad: "🎯",
+  aprendizaje: "📚",
+  disfrute: "🌿",
+  inspiracional: "✨",
 };
 
 /** Centinela para "sin seleccion" en los Select (base-ui no permite value vacio). */

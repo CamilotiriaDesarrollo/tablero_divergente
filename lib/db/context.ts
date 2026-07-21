@@ -7,10 +7,19 @@
 //   - Bot (runWithDbContext): cliente service_role + el mismo user_id del dueno.
 // En ambos casos ownerId() devuelve el uuid del dueno, y lib/db filtra por el.
 import { AsyncLocalStorage } from "node:async_hooks";
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/db";
 import { createClient } from "@/lib/supabase/server";
 import { OWNER_USER_ID } from "@/lib/owner";
+
+// Memoiza la construccion del cliente web por-request (React cache): los 3-4
+// lectores paralelos de un mismo render comparten UN cliente en vez de crear uno
+// por consulta. Solo memoiza la CONSTRUCCION, no los resultados: cada .select()
+// sigue pegandole a la DB, asi que la frescura no cambia.
+const getWebClient = cache(
+  () => createClient() as unknown as Promise<SupabaseClient<Database>>,
+);
 
 export interface DbContext {
   /** Cliente de Supabase a usar en esta ejecucion. */
@@ -26,7 +35,7 @@ const storage = new AsyncLocalStorage<DbContext>();
 
 const defaultContext: DbContext = {
   // La web en modo dueno unico: cliente por cookies (anon), identidad FIJA.
-  getClient: () => createClient() as unknown as Promise<SupabaseClient<Database>>,
+  getClient: () => getWebClient(),
   userId: OWNER_USER_ID,
 };
 

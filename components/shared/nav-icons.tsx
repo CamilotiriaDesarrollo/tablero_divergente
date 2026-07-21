@@ -5,7 +5,6 @@ import {
   Home,
   FolderKanban,
   ListChecks,
-  Inbox,
   Lightbulb,
   CalendarDays,
   Circle,
@@ -16,7 +15,6 @@ const MAP: Record<string, LucideIcon> = {
   Home,
   FolderKanban,
   ListChecks,
-  Inbox,
   Lightbulb,
   CalendarDays,
 };

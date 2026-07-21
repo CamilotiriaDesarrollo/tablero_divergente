@@ -34,6 +34,19 @@ async function requireUserId(): Promise<string> {
   return user.id;
 }
 
+/**
+ * True si el error es "falta la columna phase_id" (migracion 0005 sin aplicar).
+ * PostgREST devuelve PGRST204; Postgres crudo 42703. Nos permite reintentar la
+ * escritura sin phase_id para que la app funcione aunque falte la migracion.
+ */
+function isMissingPhaseColumn(
+  error: { code?: string; message?: string } | null,
+): boolean {
+  if (!error) return false;
+  const code = error.code ?? "";
+  return (code === "PGRST204" || code === "42703") && /phase_id/.test(error.message ?? "");
+}
+
 // ---------- Consultas ----------
 
 export interface TaskFilter {
@@ -176,6 +189,23 @@ export async function getTasksInRange(
   return (data ?? []) as unknown as TaskWithProject[];
 }
 
+/** Tareas realizadas con completed_at a partir de una fecha (ISO). Para el dashboard. */
+export async function getCompletedSince(sinceISO: string): Promise<TaskWithProject[]> {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = await client();
+  let query = supabase
+    .from("tasks")
+    .select(PROJECT_JOIN)
+    .eq("status", "hecho")
+    .gte("completed_at", sinceISO)
+    .order("completed_at", { ascending: false });
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as unknown as TaskWithProject[];
+}
+
 export async function getTaskById(id: string): Promise<Task | null> {
   if (!isSupabaseConfigured()) return null;
   const supabase = await client();
@@ -230,13 +260,18 @@ export async function createTask(
 ): Promise<Task> {
   const supabase = await client();
   const userId = await requireUserId();
-  const { data, error } = await supabase
-    .from("tasks")
-    .insert({ ...input, user_id: userId })
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data;
+  const payload: TaskInsert = { ...input, user_id: userId };
+  const first = await supabase.from("tasks").insert(payload).select("*").single();
+  // Reintento sin phase_id si la columna aun no existe (migracion 0005 pendiente).
+  if (first.error && isMissingPhaseColumn(first.error) && "phase_id" in payload) {
+    const rest = { ...payload };
+    delete rest.phase_id;
+    const retry = await supabase.from("tasks").insert(rest).select("*").single();
+    if (retry.error) throw retry.error;
+    return retry.data;
+  }
+  if (first.error) throw first.error;
+  return first.data;
 }
 
 /** Captura rapida a la bandeja (status inbox, sin proyecto ni fecha). */
@@ -259,12 +294,23 @@ export async function createSubtask(
 
 export async function updateTask(id: string, patch: TaskUpdate): Promise<Task> {
   const supabase = await client();
-  let query = supabase.from("tasks").update(patch).eq("id", id);
   const uid = ownerId();
-  if (uid) query = query.eq("user_id", uid);
-  const { data, error } = await query.select("*").single();
-  if (error) throw error;
-  return data;
+  const run = (p: TaskUpdate) => {
+    let q = supabase.from("tasks").update(p).eq("id", id);
+    if (uid) q = q.eq("user_id", uid);
+    return q.select("*").single();
+  };
+  const first = await run(patch);
+  // Reintento sin phase_id si la columna aun no existe (migracion 0005 pendiente).
+  if (first.error && isMissingPhaseColumn(first.error) && "phase_id" in patch) {
+    const rest = { ...patch };
+    delete rest.phase_id;
+    const retry = await run(rest);
+    if (retry.error) throw retry.error;
+    return retry.data;
+  }
+  if (first.error) throw first.error;
+  return first.data;
 }
 
 /** Cambia el estado. Si pasa a 'hecho' marca completed_at; si sale de hecho lo limpia. */
@@ -308,6 +354,23 @@ export async function moveTask(
   position: number,
 ): Promise<Task> {
   return setTaskStatus(id, status, position);
+}
+
+/**
+ * Movimiento completo del Kanban en UNA operacion (antes eran 3 acciones y 3
+ * revalidaciones). Fija estado + completed_at + posicion de la tarea movida,
+ * normaliza el orden de la columna destino y, si cambio de columna, el del origen.
+ */
+export async function moveTaskOnBoard(params: {
+  id: string;
+  status: TaskStatus;
+  destIds: string[];
+  sourceIds?: string[];
+}): Promise<void> {
+  const index = Math.max(0, params.destIds.indexOf(params.id));
+  await setTaskStatus(params.id, params.status, index);
+  await reorderTasks(params.destIds);
+  if (params.sourceIds?.length) await reorderTasks(params.sourceIds);
 }
 
 /** Reordena un conjunto de tareas (orden manual del dueno). */

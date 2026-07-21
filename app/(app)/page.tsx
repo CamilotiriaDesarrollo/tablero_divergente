@@ -1,91 +1,42 @@
 // app/(app)/page.tsx
-// Inicio / Foco: lo vencido, lo de hoy, lo proximo, y captura rapida.
-// Lectura de urgencia como senal (emoji + dias). Nunca reordena solo.
-import Link from "next/link";
-import { addDays } from "date-fns";
-import { AlertTriangle, CalendarClock, Sun } from "lucide-react";
-import { getOverdueTasks, getTodayTasks, getTasksInRange } from "@/lib/db/tasks";
-import type { TaskWithProject } from "@/types/db";
+// Inicio: tablero de productividad. Indicadores (pendientes, vencidas, hoy,
+// realizadas), actividad de la semana, distribucion por prioridad, trabajo por
+// proyecto y listas de foco (vencido / hoy / proximo). La urgencia sugiere, el
+// orden lo decide la persona (BLUEPRINT / CLAUDE.md). Sin em-dashes en la copy.
+import { subDays, startOfDay, parseISO, format } from "date-fns";
+import { es } from "date-fns/locale";
+import {
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+  ListTodo,
+  Sun,
+} from "lucide-react";
+import { getOpenTasks, getCompletedSince } from "@/lib/db/tasks";
+import type { Priority, TaskWithProject } from "@/types/db";
 import { isSupabaseConfigured } from "@/lib/config";
-import { diasRestantesLabel } from "@/lib/utils/dates";
-import { PRIORITY_EMOJI } from "@/lib/utils/urgency";
-import { cn } from "@/lib/utils";
+import {
+  toDateColumn,
+  diasRestantes,
+  esHoy,
+  estaVencida,
+} from "@/lib/utils/dates";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InicioQuickCapture } from "@/components/shared/inicio-quick-capture";
+import {
+  StatCard,
+  WeeklyActivity,
+  PriorityBreakdown,
+  ProjectBreakdown,
+  FocusSection,
+  type DaySlot,
+  type ProjectSlot,
+} from "@/components/inicio/dashboard";
 
 export const dynamic = "force-dynamic";
 
-function TaskRow({ task }: { task: TaskWithProject }) {
-  return (
-    <Link
-      href="/tareas"
-      className="flex items-center gap-3 rounded-md border border-border bg-card px-3 py-2 transition-colors hover:border-primary/40"
-    >
-      <span className="w-5 text-center text-sm" aria-hidden>
-        {task.priority ? PRIORITY_EMOJI[task.priority] : "·"}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-        {task.title}
-      </span>
-      {task.project?.name && (
-        <span className="hidden truncate text-xs text-muted-foreground sm:inline">
-          {task.project.name}
-        </span>
-      )}
-      <span
-        className={cn(
-          "shrink-0 font-mono text-xs",
-          task.due_at ? "text-muted-foreground" : "text-muted-foreground/60",
-        )}
-      >
-        {diasRestantesLabel(task.due_at)}
-      </span>
-    </Link>
-  );
-}
-
-function Section({
-  title,
-  icon,
-  tone,
-  tasks,
-  emptyLabel,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  tone?: "danger" | "accent";
-  tasks: TaskWithProject[];
-  emptyLabel: string;
-}) {
-  return (
-    <section className="space-y-2">
-      <h2 className="flex items-center gap-2 font-heading text-sm font-semibold tracking-tight">
-        <span
-          className={cn(
-            tone === "danger" && "text-priority-alta",
-            tone === "accent" && "text-primary",
-          )}
-        >
-          {icon}
-        </span>
-        {title}
-        <span className="font-mono text-xs text-muted-foreground">
-          {tasks.length}
-        </span>
-      </h2>
-      {tasks.length === 0 ? (
-        <p className="rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-          {emptyLabel}
-        </p>
-      ) : (
-        <div className="space-y-1.5">
-          {tasks.map((t) => (
-            <TaskRow key={t.id} task={t} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
+function byDueAsc(a: TaskWithProject, b: TaskWithProject): number {
+  return (a.due_at ?? "9999").localeCompare(b.due_at ?? "9999");
 }
 
 export default async function InicioPage() {
@@ -100,21 +51,18 @@ export default async function InicioPage() {
     );
   }
 
-  let overdue: TaskWithProject[] = [];
-  let today: TaskWithProject[] = [];
-  let upcoming: TaskWithProject[] = [];
-  let failed = false;
+  const now = new Date();
+  const todayStr = toDateColumn(now);
+  const weekStart = startOfDay(subDays(now, 6)); // ventana de 7 dias (incluye hoy)
 
+  let openTasks: TaskWithProject[] = [];
+  let completed: TaskWithProject[] = [];
+  let failed = false;
   try {
-    const now = new Date();
-    [overdue, today, upcoming] = await Promise.all([
-      getOverdueTasks(),
-      getTodayTasks(),
-      getTasksInRange(addDays(now, 1), addDays(now, 14)),
+    [openTasks, completed] = await Promise.all([
+      getOpenTasks(), // todo + en_progreso, nivel superior, con proyecto
+      getCompletedSince(weekStart.toISOString()),
     ]);
-    // Proximo excluye lo ya realizado (getTasksInRange no filtra estado; el
-    // calendario si quiere ver las hechas por fecha, Inicio no).
-    upcoming = upcoming.filter((t) => t.status !== "hecho");
   } catch {
     failed = true;
   }
@@ -123,47 +71,156 @@ export default async function InicioPage() {
     return (
       <div className="mx-auto max-w-2xl">
         <EmptyState
-          title="No pudimos cargar tu foco"
+          title="No pudimos cargar tu tablero"
           description="Revisa que las migraciones esten aplicadas en Supabase y recarga la pagina."
         />
       </div>
     );
   }
 
+  // --- Foco por fecha ---
+  const overdue = openTasks.filter((t) => estaVencida(t.due_at)).sort(byDueAsc);
+  const today = openTasks.filter((t) => esHoy(t.due_at)).sort(byDueAsc);
+  const upcoming = openTasks
+    .filter((t) => {
+      const d = diasRestantes(t.due_at);
+      return d !== null && d > 0 && d <= 14;
+    })
+    .sort(byDueAsc);
+
+  // --- Indicadores ---
+  const pendientes = openTasks.length;
+  const enProgreso = openTasks.filter((t) => t.status === "en_progreso").length;
+
+  const prio = { alta: 0, media: 0, baja: 0, ninguna: 0 };
+  for (const t of openTasks) {
+    prio[(t.priority ?? "ninguna") as Priority | "ninguna"] += 1;
+  }
+
+  const completedWeek = completed.length;
+  const dayOf = (iso: string | null) =>
+    iso ? toDateColumn(parseISO(iso)) : "";
+  const completedToday = completed.filter(
+    (t) => dayOf(t.completed_at) === todayStr,
+  ).length;
+
+  const series: DaySlot[] = Array.from({ length: 7 }, (_, i) => {
+    const d = subDays(now, 6 - i);
+    const key = toDateColumn(d);
+    return {
+      key,
+      label: format(d, "EEEEEE", { locale: es }),
+      count: completed.filter((t) => dayOf(t.completed_at) === key).length,
+      isToday: key === todayStr,
+    };
+  });
+
+  // --- Trabajo abierto por proyecto (incluye "Sin proyecto") ---
+  const projMap = new Map<string, ProjectSlot>();
+  for (const t of openTasks) {
+    const id = t.project?.id ?? "__none__";
+    const cur =
+      projMap.get(id) ??
+      ({
+        id,
+        name: t.project?.name ?? "Sin proyecto",
+        icon: t.project?.icon ?? null,
+        count: 0,
+      } as ProjectSlot);
+    cur.count += 1;
+    projMap.set(id, cur);
+  }
+  const projectRows = [...projMap.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  // --- Saludo ---
+  const hour = now.getHours();
+  const saludo =
+    hour < 12 ? "Buenos dias" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+  const fecha = format(now, "EEEE d 'de' MMMM", { locale: es });
+
+  const resumen =
+    overdue.length > 0
+      ? `Tienes ${overdue.length} ${overdue.length === 1 ? "tarea vencida" : "tareas vencidas"} y ${pendientes} pendientes en total.`
+      : pendientes > 0
+        ? `${pendientes} ${pendientes === 1 ? "tarea pendiente" : "tareas pendientes"}. Nada vencido, vas al dia.`
+        : "Todo al dia. No tienes pendientes abiertos.";
+
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className="mx-auto max-w-5xl space-y-6">
       <header className="space-y-1">
         <h1 className="font-heading text-2xl font-semibold tracking-tight">
-          Inicio
+          {saludo}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Lo que importa hoy. El orden lo decides tu.
+          <span className="capitalize">{fecha}</span>. {resumen}
         </p>
       </header>
 
       <InicioQuickCapture />
 
-      <div className="space-y-8">
-        <Section
-          title="Vencido"
-          tone="danger"
-          icon={<AlertTriangle className="size-4" />}
-          tasks={overdue}
-          emptyLabel="Nada vencido. Bien ahi."
+      {/* Indicadores */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          label="Pendientes"
+          value={pendientes}
+          icon={ListTodo}
+          hint={`${enProgreso} en progreso`}
         />
-        <Section
-          title="Hoy"
-          tone="accent"
-          icon={<Sun className="size-4" />}
-          tasks={today}
-          emptyLabel="Sin tareas para hoy. Puedes capturar algo arriba."
+        <StatCard
+          label="Vencidas"
+          value={overdue.length}
+          icon={AlertTriangle}
+          tone={overdue.length ? "danger" : "neutral"}
+          hint={overdue.length ? "requieren atencion" : "nada vencido"}
         />
-        <Section
-          title="Proximo (14 dias)"
-          icon={<CalendarClock className="size-4" />}
-          tasks={upcoming}
-          emptyLabel="Nada en el horizonte cercano."
+        <StatCard
+          label="Para hoy"
+          value={today.length}
+          icon={Sun}
+          tone={today.length ? "accent" : "neutral"}
+          hint={today.length ? "vencen hoy" : "sin entregas hoy"}
         />
+        <StatCard
+          label="Hechas · 7 dias"
+          value={completedWeek}
+          icon={CheckCircle2}
+          tone={completedWeek ? "positive" : "neutral"}
+          hint={`${completedToday} hoy`}
+        />
+      </div>
+
+      {/* Contenido principal + panel de widgets */}
+      <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+        <div className="flex flex-col gap-6">
+          <FocusSection
+            title="Vencido"
+            tone="danger"
+            icon={AlertTriangle}
+            tasks={overdue}
+            emptyLabel="Nada vencido. Bien ahi."
+          />
+          <FocusSection
+            title="Hoy"
+            tone="accent"
+            icon={Sun}
+            tasks={today}
+            emptyLabel="Sin tareas para hoy. Captura algo arriba si surge."
+          />
+          <FocusSection
+            title="Proximo · 14 dias"
+            icon={CalendarClock}
+            tasks={upcoming}
+            emptyLabel="Nada en el horizonte cercano."
+          />
+        </div>
+
+        <div className="flex flex-col gap-6">
+          <WeeklyActivity series={series} total={completedWeek} />
+          <PriorityBreakdown counts={prio} total={pendientes} />
+          <ProjectBreakdown rows={projectRows} />
+        </div>
       </div>
     </div>
   );

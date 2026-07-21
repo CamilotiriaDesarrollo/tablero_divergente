@@ -1,10 +1,17 @@
 "use client";
-// Formulario de crear/editar tarea (dialogo controlado). Campos: titulo, notas,
-// proyecto, prioridad, fecha recibida, fecha entrega, tipo (multi), categoria,
-// recurso (url) y diaria. Muta via createTaskAction / updateTaskAction. En modo
-// edicion muestra las subtareas. Textos en espanol, sin em-dashes.
+// Formulario de crear/editar/ver una tarea (dialogo controlado). Campos: titulo,
+// notas, proyecto (o fase cuando se abre dentro de un proyecto), prioridad, fecha
+// recibida, fecha entrega, categoria, recurso (url) y diaria. Muta via
+// createTaskAction / updateTaskAction. En modo edicion muestra las subtareas.
+// Textos en espanol, sin em-dashes.
 import { useEffect, useState } from "react";
-import type { Project, Task, TaskStatus, Priority } from "@/types/db";
+import type {
+  PhaseOption,
+  Project,
+  Task,
+  TaskStatus,
+  Priority,
+} from "@/types/db";
 import { createTaskAction, updateTaskAction } from "@/lib/db/actions";
 import { PRIORITY_EMOJI, PRIORITY_LABEL } from "@/lib/utils/urgency";
 import {
@@ -33,14 +40,12 @@ import { SubtaskList } from "@/components/tareas/subtask-list";
 import { useRunAction } from "@/components/tareas/use-run-action";
 import {
   NONE_VALUE,
-  TASK_TYPE_OPTIONS,
-  TASK_TYPE_LABEL,
   CATEGORY_OPTIONS,
   CATEGORY_LABEL,
+  CATEGORY_EMOJI,
 } from "@/components/tareas/task-constants";
 import { PRIORITIES } from "@/types/db";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 type ProjectOption = Pick<Project, "id" | "name" | "color" | "icon" | "status">;
 
@@ -53,6 +58,14 @@ interface TaskFormProps {
   /** Estado inicial al crear (por defecto 'todo'). */
   defaultStatus?: TaskStatus;
   defaultProjectId?: string | null;
+  /**
+   * Cuando se abre dentro de un proyecto: fija el proyecto (oculta su selector)
+   * y muestra el selector de fase con estas opciones.
+   */
+  lockedProjectId?: string | null;
+  phases?: PhaseOption[];
+  /** Fase preseleccionada al crear (ej. se agrego desde una fase concreta). */
+  defaultPhaseId?: string | null;
 }
 
 export function TaskForm({
@@ -62,17 +75,21 @@ export function TaskForm({
   task,
   defaultStatus = "todo",
   defaultProjectId = null,
+  lockedProjectId = null,
+  phases,
+  defaultPhaseId = null,
 }: TaskFormProps) {
   const { run, pending } = useRunAction();
   const editing = Boolean(task);
+  const locked = Boolean(lockedProjectId);
 
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [projectId, setProjectId] = useState<string>(NONE_VALUE);
+  const [phaseId, setPhaseId] = useState<string>(NONE_VALUE);
   const [priority, setPriority] = useState<string>(NONE_VALUE);
   const [receivedAt, setReceivedAt] = useState("");
   const [dueAt, setDueAt] = useState("");
-  const [taskTypes, setTaskTypes] = useState<string[]>([]);
   const [category, setCategory] = useState<string>(NONE_VALUE);
   const [resourceUrl, setResourceUrl] = useState("");
   const [isDaily, setIsDaily] = useState(false);
@@ -82,23 +99,17 @@ export function TaskForm({
     if (!open) return;
     setTitle(task?.title ?? "");
     setNotes(task?.notes ?? "");
-    setProjectId(task?.project_id ?? defaultProjectId ?? NONE_VALUE);
+    setProjectId(
+      lockedProjectId ?? task?.project_id ?? defaultProjectId ?? NONE_VALUE,
+    );
+    setPhaseId(task?.phase_id ?? defaultPhaseId ?? NONE_VALUE);
     setPriority(task?.priority ?? NONE_VALUE);
     setReceivedAt(task?.received_at ?? "");
     setDueAt(task?.due_at ?? "");
-    setTaskTypes(task?.task_type ?? []);
     setCategory(task?.category ?? NONE_VALUE);
     setResourceUrl(task?.resource_url ?? "");
     setIsDaily(task?.is_daily ?? false);
-  }, [open, task, defaultProjectId]);
-
-  function toggleType(value: string) {
-    setTaskTypes((prev) =>
-      prev.includes(value)
-        ? prev.filter((t) => t !== value)
-        : [...prev, value],
-    );
-  }
+  }, [open, task, defaultProjectId, defaultPhaseId, lockedProjectId]);
 
   function handleSubmit() {
     const cleanTitle = title.trim();
@@ -110,11 +121,18 @@ export function TaskForm({
     const payload = {
       title: cleanTitle,
       notes: notes.trim() || null,
-      project_id: projectId === NONE_VALUE ? null : projectId,
+      project_id: locked
+        ? lockedProjectId
+        : projectId === NONE_VALUE
+          ? null
+          : projectId,
+      // Solo enviamos phase_id dentro del contexto de un proyecto (fases activas).
+      ...(locked
+        ? { phase_id: phaseId === NONE_VALUE ? null : phaseId }
+        : {}),
       priority: (priority === NONE_VALUE ? null : priority) as Priority | null,
       received_at: receivedAt || null,
       due_at: dueAt || null,
-      task_type: taskTypes.length ? taskTypes : null,
       category: category === NONE_VALUE ? null : category,
       resource_url: resourceUrl.trim() || null,
       is_daily: isDaily,
@@ -132,6 +150,8 @@ export function TaskForm({
     );
   }
 
+  const phaseOptions = phases ?? [];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
@@ -147,11 +167,12 @@ export function TaskForm({
         <div className="flex max-h-[65vh] flex-col gap-4 overflow-y-auto px-0.5 py-1">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="task-title">Titulo</Label>
-            <Input
+            <Textarea
               id="task-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Actividad especifica"
+              rows={2}
               autoFocus
             />
           </div>
@@ -167,34 +188,59 @@ export function TaskForm({
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label>Proyecto</Label>
-              <Select
-                value={projectId}
-                onValueChange={(v) => setProjectId(v as string)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(v: string) => {
-                      if (!v || v === NONE_VALUE) return "Sin proyecto";
-                      const p = projects.find((x) => x.id === v);
-                      return p
-                        ? `${p.icon ? `${p.icon} ` : ""}${p.name}`
-                        : "Sin proyecto";
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE_VALUE}>Sin proyecto</SelectItem>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.icon ? `${p.icon} ` : ""}
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {locked ? (
+              <div className="flex flex-col gap-1.5">
+                <Label>Fase o modulo</Label>
+                <Select value={phaseId} onValueChange={(v) => setPhaseId(v as string)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(v: string) => {
+                        if (!v || v === NONE_VALUE) return "Sin fase";
+                        const p = phaseOptions.find((x) => x.id === v);
+                        return p ? p.name : "Sin fase";
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE_VALUE}>Sin fase</SelectItem>
+                    {phaseOptions.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <Label>Proyecto</Label>
+                <Select
+                  value={projectId}
+                  onValueChange={(v) => setProjectId(v as string)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(v: string) => {
+                        if (!v || v === NONE_VALUE) return "Sin proyecto";
+                        const p = projects.find((x) => x.id === v);
+                        return p
+                          ? `${p.icon ? `${p.icon} ` : ""}${p.name}`
+                          : "Sin proyecto";
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE_VALUE}>Sin proyecto</SelectItem>
+                    {projects.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.icon ? `${p.icon} ` : ""}
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <Label>Prioridad</Label>
@@ -243,31 +289,6 @@ export function TaskForm({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label>Tipo</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {TASK_TYPE_OPTIONS.map((t) => {
-                const active = taskTypes.includes(t);
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => toggleType(t)}
-                    className={cn(
-                      "rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                      active
-                        ? "border-primary/40 bg-primary/10 text-foreground"
-                        : "border-border text-muted-foreground hover:bg-muted",
-                    )}
-                  >
-                    {TASK_TYPE_LABEL[t]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>Categoria</Label>
@@ -279,7 +300,7 @@ export function TaskForm({
                   <SelectValue>
                     {(v: string) =>
                       v && v !== NONE_VALUE
-                        ? (CATEGORY_LABEL[v] ?? v)
+                        ? `${CATEGORY_EMOJI[v] ? `${CATEGORY_EMOJI[v]} ` : ""}${CATEGORY_LABEL[v] ?? v}`
                         : "Sin categoria"
                     }
                   </SelectValue>
@@ -288,6 +309,7 @@ export function TaskForm({
                   <SelectItem value={NONE_VALUE}>Sin categoria</SelectItem>
                   {CATEGORY_OPTIONS.map((c) => (
                     <SelectItem key={c} value={c}>
+                      {CATEGORY_EMOJI[c] ? `${CATEGORY_EMOJI[c]} ` : ""}
                       {CATEGORY_LABEL[c]}
                     </SelectItem>
                   ))}

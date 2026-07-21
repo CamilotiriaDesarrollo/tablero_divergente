@@ -1,7 +1,7 @@
 // components/proyectos/project-card.tsx
 // Tarjeta de proyecto para la galeria. Presentacional (sin estado): recibe el
-// proyecto con su conteo y enlaza al detalle. El color del proyecto aparece solo
-// como anillo sutil del icono (acento, no relleno). El conteo va en mono (dato).
+// proyecto con su conteo y enlaza al detalle. El color del proyecto crea una
+// superficie suave en toda la tarjeta y mantiene el conteo como dato secundario.
 import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ProjectStatusBadge } from "@/components/proyectos/project-status-badge";
@@ -19,14 +19,23 @@ export function ProjectCard({ project }: { project: ProjectWithCount }) {
       href={`/proyectos/${project.id}`}
       className="group block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
-      <Card className="h-full gap-3 transition-colors group-hover:bg-muted/40">
+      <Card
+        className="h-full gap-3 transition-[transform,border-color,box-shadow] duration-200 group-hover:-translate-y-0.5"
+        style={{
+          backgroundColor: `${accent}1f`,
+          borderColor: `${accent}66`,
+          boxShadow: `0 1px 0 ${accent}22`,
+        }}
+      >
         <CardHeader>
           <div className="flex items-start gap-3">
             <span
               aria-hidden="true"
-              className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-lg"
-              // Anillo de color como acento sutil (no relleno). ~55% de alpha.
-              style={{ boxShadow: `inset 0 0 0 1.5px ${accent}88` }}
+              className="flex size-9 shrink-0 items-center justify-center rounded-lg text-lg"
+              style={{
+                backgroundColor: `${accent}2e`,
+                boxShadow: `inset 0 0 0 1.5px ${accent}b3`,
+              }}
             >
               {icon}
             </span>

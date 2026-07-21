@@ -7,6 +7,7 @@
 import { useCallback, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { markLocalMutation } from "@/lib/realtime/echo-guard";
 
 interface RunOptions {
   /** Aviso de exito. Si se omite, no muestra toast al terminar bien. */
@@ -27,7 +28,9 @@ export function useRunAction() {
     (action: () => Promise<unknown>, options: RunOptions = {}) => {
       startTransition(async () => {
         try {
+          markLocalMutation(); // suprime el eco de Realtime de esta mutacion
           await action();
+          markLocalMutation();
           if (options.success) toast.success(options.success);
           if (options.refresh !== false) router.refresh();
           options.onSuccess?.();

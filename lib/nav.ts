@@ -28,12 +28,6 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Tabla, Kanban, buckets de tiempo y diarias",
   },
   {
-    href: "/bandeja",
-    label: "Bandeja",
-    icon: "Inbox",
-    description: "Captura rapida sin clasificar",
-  },
-  {
     href: "/ideas",
     label: "Ideas",
     icon: "Lightbulb",

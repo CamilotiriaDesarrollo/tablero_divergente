@@ -1,25 +1,27 @@
 // components/proyectos/project-colors.ts
-// Paleta pequena de acentos de proyecto. GUARDRAIL de diseno (BLUEPRINT seccion 6):
-// el unico color saturado de la app son las prioridades. El color del proyecto es
-// un acento SUTIL (punto/anillo), nunca llena la tarjeta. Por eso son tonos
-// contenidos y solo aparecen en un punto o un anillo fino.
+// Paleta de proyectos: tonos bien separados para identificar cada iniciativa
+// rapidamente en el calendario y en sus tarjetas.
 
 export interface ProjectColor {
   /** Token que se guarda en projects.color. */
   token: string;
   /** Nombre humano para el selector. */
   label: string;
-  /** Hex del acento (tono contenido, no saturado). */
+  /** Hex del acento. */
   value: string;
 }
 
 export const PROJECT_COLORS: ProjectColor[] = [
-  { token: "pizarra", label: "Pizarra", value: "#6b7280" },
-  { token: "periwinkle", label: "Periwinkle", value: "#8a7cff" },
-  { token: "salvia", label: "Salvia", value: "#6b9b7a" },
-  { token: "oceano", label: "Oceano", value: "#5a8fb5" },
-  { token: "arena", label: "Arena", value: "#b08968" },
-  { token: "ciruela", label: "Ciruela", value: "#9b6b9e" },
+  { token: "pizarra", label: "Indigo", value: "#5b6ee1" },
+  { token: "periwinkle", label: "Violeta", value: "#a879f7" },
+  { token: "salvia", label: "Esmeralda", value: "#35bd87" },
+  { token: "oceano", label: "Azul", value: "#2f9de8" },
+  { token: "arena", label: "Ambar", value: "#eba540" },
+  { token: "ciruela", label: "Fucsia", value: "#d96dc5" },
+  { token: "turquesa", label: "Turquesa", value: "#24bfae" },
+  { token: "coral", label: "Coral", value: "#ed6d6d" },
+  { token: "lima", label: "Lima", value: "#a4c85a" },
+  { token: "frambuesa", label: "Frambuesa", value: "#ea6f9c" },
 ];
 
 const BY_TOKEN = new Map(PROJECT_COLORS.map((c) => [c.token, c]));

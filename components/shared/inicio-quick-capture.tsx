@@ -1,12 +1,14 @@
 "use client";
 // components/shared/inicio-quick-capture.tsx
-// Captura rapida desde Inicio: crea una tarea en la bandeja (status inbox).
+// Captura rapida desde Inicio: crea una tarea accionable (status todo, sin
+// proyecto) que aparece de una vez en Tareas y en los pendientes del tablero.
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { quickCaptureAction } from "@/lib/db/actions";
+import { createTaskAction } from "@/lib/db/actions";
+import { markLocalMutation } from "@/lib/realtime/echo-guard";
 import { toast } from "sonner";
 
 export function InicioQuickCapture() {
@@ -19,12 +21,14 @@ export function InicioQuickCapture() {
     if (!text) return;
     startTransition(async () => {
       try {
-        await quickCaptureAction(text);
+        markLocalMutation();
+        await createTaskAction({ title: text, status: "todo" });
+        markLocalMutation();
         setValue("");
-        toast.success("Capturado en la bandeja");
+        toast.success("Tarea agregada", { description: "La ves en Tareas." });
         router.refresh();
       } catch {
-        toast.error("No se pudo capturar", { description: "Intenta de nuevo." });
+        toast.error("No se pudo agregar", { description: "Intenta de nuevo." });
       }
     });
   }

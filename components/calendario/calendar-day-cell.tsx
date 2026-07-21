@@ -1,8 +1,8 @@
 "use client";
 // components/calendario/calendar-day-cell.tsx
 // Una celda de dia de la grilla del mes. Muestra hasta N tareas por due_at con
-// un punto del color de su prioridad (el unico color saturado de la app) y el
-// titulo truncado. El resto se despliega en un popover "+X mas". Un clic en el
+// un punto del color de su proyecto y el titulo truncado. El resto se despliega
+// en un popover "+X mas". Un clic en el
 // area vacia o en el numero del dia abre el dialog de creacion.
 import {
   Popover,
@@ -10,14 +10,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import type { Priority, TaskWithProject } from "@/types/db";
+import { projectColorValue } from "@/components/proyectos/project-colors";
+import type { TaskWithProject } from "@/types/db";
 import { formatDayLong } from "./month-range";
-
-const DOT_CLASS: Record<Priority, string> = {
-  alta: "bg-priority-alta",
-  media: "bg-priority-media",
-  baja: "bg-priority-baja",
-};
 
 /** Chip compacto de una tarea. Reutilizado en la celda, el popover y la lista movil. */
 export function TaskChip({
@@ -30,7 +25,10 @@ export function TaskChip({
   className?: string;
 }) {
   const done = task.status === "hecho";
-  const dot = task.priority ? DOT_CLASS[task.priority] : "bg-muted-foreground/40";
+  const projectColor = task.project
+    ? projectColorValue(task.project.color)
+    : undefined;
+  const title = task.project ? `${task.title} - ${task.project.name}` : task.title;
   return (
     <button
       type="button"
@@ -38,7 +36,7 @@ export function TaskChip({
         e.stopPropagation();
         onSelect(task);
       }}
-      title={task.title}
+      title={title}
       className={cn(
         "flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-accent focus-visible:bg-accent",
         done && "opacity-70",
@@ -46,7 +44,12 @@ export function TaskChip({
       )}
     >
       <span
-        className={cn("size-1.5 shrink-0 rounded-full", dot, done && "opacity-50")}
+        className={cn(
+          "size-1.5 shrink-0 rounded-full",
+          !projectColor && "bg-muted-foreground/40",
+          done && "opacity-50",
+        )}
+        style={projectColor ? { backgroundColor: projectColor } : undefined}
         aria-hidden
       />
       <span className={cn("truncate", done && "text-muted-foreground line-through")}>

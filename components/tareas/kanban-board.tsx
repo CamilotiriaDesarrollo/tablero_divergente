@@ -22,7 +22,8 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { toast } from "sonner";
 import type { Task, TaskStatus, TaskWithProject } from "@/types/db";
-import { moveTaskAction, reorderTasksAction } from "@/lib/db/actions";
+import { moveTaskOnBoardAction } from "@/lib/db/actions";
+import { markLocalMutation } from "@/lib/realtime/echo-guard";
 import { KanbanColumn } from "@/components/tareas/kanban-column";
 import { PriorityBadge } from "@/components/tareas/priority-badge";
 import { BOARD_STATUSES } from "@/components/tareas/task-constants";
@@ -154,16 +155,21 @@ export function KanbanBoard({
     cols: Columns,
   ) {
     const destIds = cols[destContainer].map((t) => t.id);
-    const destIndex = Math.max(0, destIds.indexOf(id));
+    markLocalMutation(); // suprime el eco de Realtime de esta mutacion
     try {
-      // Estado (+ completed_at) y posicion de la tarea movida.
-      await moveTaskAction(id, destContainer, destIndex);
-      // Normaliza posiciones de la columna destino.
-      await reorderTasksAction(destIds);
-      // Si cambio de columna, normaliza tambien el origen.
-      if (sourceContainer !== destContainer) {
-        await reorderTasksAction(cols[sourceContainer].map((t) => t.id));
-      }
+      // Una sola accion: estado (+ completed_at) y posicion de la movida, orden
+      // de la columna destino y, si cambio de columna, orden del origen.
+      await moveTaskOnBoardAction({
+        id,
+        status: destContainer,
+        destIds,
+        sourceIds:
+          sourceContainer !== destContainer
+            ? cols[sourceContainer].map((t) => t.id)
+            : undefined,
+      });
+      markLocalMutation();
+      // Reconciliacion con las posiciones/estado normalizados del servidor.
       router.refresh();
     } catch {
       toast.error("No se pudo mover la tarea. Vuelvo a como estaba.");

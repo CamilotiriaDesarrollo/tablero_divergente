@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/config";
+import { isEchoOfLocalMutation } from "@/lib/realtime/echo-guard";
 
 export function RealtimeRefresher({ userId }: { userId: string }) {
   const router = useRouter();
@@ -17,7 +18,10 @@ export function RealtimeRefresher({ userId }: { userId: string }) {
     const supabase = createClient();
 
     // Debounce: varios cambios seguidos = un solo refresh.
+    // Guard anti-eco: si el cambio lo origino este mismo cliente hace un instante,
+    // la Server Action ya refresco la ruta; ignoramos el eco para no re-consultar.
     const scheduleRefresh = () => {
+      if (isEchoOfLocalMutation()) return;
       if (timeout.current) clearTimeout(timeout.current);
       timeout.current = setTimeout(() => router.refresh(), 300);
     };

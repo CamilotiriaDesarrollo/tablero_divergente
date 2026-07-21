@@ -87,6 +87,7 @@ export interface Database {
           id: string;
           user_id: string;
           project_id: string | null;
+          phase_id: string | null;
           parent_task_id: string | null;
           title: string;
           notes: string | null;
@@ -107,6 +108,7 @@ export interface Database {
           id?: string;
           user_id?: string;
           project_id?: string | null;
+          phase_id?: string | null;
           parent_task_id?: string | null;
           title: string;
           notes?: string | null;
@@ -127,6 +129,7 @@ export interface Database {
           id?: string;
           user_id?: string;
           project_id?: string | null;
+          phase_id?: string | null;
           parent_task_id?: string | null;
           title?: string;
           notes?: string | null;
@@ -151,9 +154,52 @@ export interface Database {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "tasks_phase_id_fkey";
+            columns: ["phase_id"];
+            referencedRelation: "phases";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "tasks_parent_task_id_fkey";
             columns: ["parent_task_id"];
             referencedRelation: "tasks";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      phases: {
+        Row: {
+          id: string;
+          user_id: string;
+          project_id: string;
+          name: string;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          project_id: string;
+          name: string;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          project_id?: string;
+          name?: string;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "phases_project_id_fkey";
+            columns: ["project_id"];
+            referencedRelation: "projects";
             referencedColumns: ["id"];
           },
         ];
@@ -263,6 +309,15 @@ export type ProjectUpdate = Database["public"]["Tables"]["projects"]["Update"];
 export type Task = Database["public"]["Tables"]["tasks"]["Row"];
 export type TaskInsert = Database["public"]["Tables"]["tasks"]["Insert"];
 export type TaskUpdate = Database["public"]["Tables"]["tasks"]["Update"];
+
+// Fase / modulo dentro de un proyecto (agrupa tareas para organizarlas).
+export type Phase = Database["public"]["Tables"]["phases"]["Row"];
+export type PhaseInsert = Database["public"]["Tables"]["phases"]["Insert"];
+export type PhaseUpdate = Database["public"]["Tables"]["phases"]["Update"];
+// Fase con sus tareas ya agrupadas (uso en el detalle de proyecto).
+export type PhaseWithTasks = Phase & { tasks: Task[] };
+// Opcion ligera de fase para selects.
+export type PhaseOption = Pick<Phase, "id" | "name" | "position">;
 
 // Tarea con sus subtareas ya anidadas (uso en UI).
 export type TaskWithSubtasks = Task & { subtasks?: Task[] };

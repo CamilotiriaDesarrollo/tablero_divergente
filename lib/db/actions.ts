@@ -7,7 +7,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import * as projectsDb from "@/lib/db/projects";
 import * as tasksDb from "@/lib/db/tasks";
-import type { Project, Task } from "@/types/db";
+import * as phasesDb from "@/lib/db/phases";
+import type { Phase, Project, Task } from "@/types/db";
 
 function revalidateApp() {
   // App de un solo dueno: revalidar el arbol de la app mantiene todo consistente.
@@ -39,6 +40,7 @@ const createTaskSchema = z.object({
   title: z.string().trim().min(1, "El titulo no puede estar vacio").max(500),
   notes: z.string().trim().max(5000).nullish(),
   project_id: z.string().uuid().nullish(),
+  phase_id: z.string().uuid().nullish(),
   parent_task_id: z.string().uuid().nullish(),
   priority: priority.nullish(),
   status: taskStatus.optional(),
@@ -95,6 +97,41 @@ export async function deleteProjectAction(id: string): Promise<void> {
 
 export async function reorderProjectsAction(ids: string[]): Promise<void> {
   await projectsDb.reorderProjects(z.array(z.string().uuid()).parse(ids));
+  revalidateApp();
+}
+
+// ---------- Fases / modulos ----------
+
+const createPhaseSchema = z.object({
+  project_id: z.string().uuid(),
+  name: z.string().trim().min(1, "El nombre no puede estar vacio").max(120),
+});
+
+export async function createPhaseAction(
+  input: z.input<typeof createPhaseSchema>,
+): Promise<Phase> {
+  const data = createPhaseSchema.parse(input);
+  const phase = await phasesDb.createPhase(data);
+  revalidateApp();
+  return phase;
+}
+
+export async function renamePhaseAction(id: string, name: string): Promise<Phase> {
+  const parsed = z
+    .object({ id: z.string().uuid(), name: z.string().trim().min(1).max(120) })
+    .parse({ id, name });
+  const phase = await phasesDb.updatePhase(parsed.id, { name: parsed.name });
+  revalidateApp();
+  return phase;
+}
+
+export async function deletePhaseAction(id: string): Promise<void> {
+  await phasesDb.deletePhase(z.string().uuid().parse(id));
+  revalidateApp();
+}
+
+export async function reorderPhasesAction(ids: string[]): Promise<void> {
+  await phasesDb.reorderPhases(z.array(z.string().uuid()).parse(ids));
   revalidateApp();
 }
 
@@ -191,6 +228,22 @@ export async function moveTaskAction(
 
 export async function deleteTaskAction(id: string): Promise<void> {
   await tasksDb.deleteTask(z.string().uuid().parse(id));
+  revalidateApp();
+}
+
+const moveOnBoardSchema = z.object({
+  id: z.string().uuid(),
+  status: taskStatus,
+  destIds: z.array(z.string().uuid()),
+  sourceIds: z.array(z.string().uuid()).optional(),
+});
+
+/** Kanban: mover + reordenar destino (+ origen) en UNA accion (una revalidacion). */
+export async function moveTaskOnBoardAction(
+  params: z.input<typeof moveOnBoardSchema>,
+): Promise<void> {
+  const parsed = moveOnBoardSchema.parse(params);
+  await tasksDb.moveTaskOnBoard(parsed);
   revalidateApp();
 }
 
