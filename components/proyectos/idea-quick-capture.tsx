@@ -9,9 +9,38 @@ import { FileAudio, Lightbulb, LoaderCircle, Mic, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { VoiceRecordingPanel } from "@/components/proyectos/voice-recording-panel";
 import { createProjectAction } from "@/lib/db/actions";
 
 const NOTE_LIMIT = 8000;
+
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
+  0: { transcript: string };
+}
+
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: {
+    length: number;
+    [index: number]: SpeechRecognitionResultLike;
+  };
+}
+
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  maxAlternatives: number;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 export function IdeaQuickCapture() {
   const router = useRouter();
@@ -19,16 +48,101 @@ export function IdeaQuickCapture() {
   const [notes, setNotes] = useState("");
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [liveSupported, setLiveSupported] = useState(true);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recordingRef = useRef(false);
+  const finalLiveTranscriptRef = useRef("");
+  const liveTranscriptRef = useRef("");
 
   useEffect(() => {
     return () => {
+      recordingRef.current = false;
+      recognitionRef.current?.abort();
       recorderRef.current?.stop();
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);
+
+  function appendToNotes(text: string) {
+    setNotes((current) =>
+      [current.trim(), text.trim()].filter(Boolean).join("\n\n").slice(0, NOTE_LIMIT),
+    );
+  }
+
+  function startLiveRecognition() {
+    const speechWindow = window as typeof window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+    const Recognition =
+      speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    if (!Recognition) {
+      setLiveSupported(false);
+      return;
+    }
+
+    setLiveSupported(true);
+    finalLiveTranscriptRef.current = "";
+    liveTranscriptRef.current = "";
+    setLiveTranscript("");
+
+    const recognition = new Recognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "es-CO";
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      let interim = "";
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const text = result[0]?.transcript ?? "";
+        if (result.isFinal) finalLiveTranscriptRef.current += `${text.trim()} `;
+        else interim += text;
+      }
+      const combined = `${finalLiveTranscriptRef.current}${interim}`.trim();
+      liveTranscriptRef.current = combined;
+      setLiveTranscript(combined);
+    };
+    recognition.onerror = (event) => {
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        setLiveSupported(false);
+      }
+    };
+    recognition.onend = () => {
+      if (!recordingRef.current) return;
+      window.setTimeout(() => {
+        if (!recordingRef.current) return;
+        try {
+          recognition.start();
+        } catch {
+          // El navegador puede seguir cerrando la sesion anterior.
+        }
+      }, 150);
+    };
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+    } catch {
+      setLiveSupported(false);
+    }
+  }
+
+  function stopLiveRecognition() {
+    const recognition = recognitionRef.current;
+    if (!recognition) return;
+    recognition.onend = null;
+    try {
+      recognition.stop();
+    } catch {
+      recognition.abort();
+    }
+    recognitionRef.current = null;
+  }
 
   async function transcribe(blob: Blob, filename: string) {
     setTranscribing(true);
@@ -41,14 +155,20 @@ export function IdeaQuickCapture() {
       if (!response.ok || !transcript) {
         throw new Error(result.error ?? "No se pudo transcribir el audio.");
       }
-      setNotes((current) =>
-        [current.trim(), transcript.trim()].filter(Boolean).join("\n\n").slice(0, NOTE_LIMIT),
-      );
+      appendToNotes(transcript);
       toast.success("Nota de voz transcrita");
     } catch (error) {
-      toast.error("No se pudo transcribir", {
-        description: error instanceof Error ? error.message : "Intenta de nuevo.",
-      });
+      const fallback = liveTranscriptRef.current.trim();
+      if (fallback) {
+        appendToNotes(fallback);
+        toast.warning("Se uso la transcripcion provisional", {
+          description: "Groq no respondio, pero conservamos el texto reconocido en vivo.",
+        });
+      } else {
+        toast.error("No se pudo transcribir", {
+          description: error instanceof Error ? error.message : "Intenta de nuevo.",
+        });
+      }
     } finally {
       setTranscribing(false);
     }
@@ -66,6 +186,7 @@ export function IdeaQuickCapture() {
         ? new MediaRecorder(stream, { mimeType })
         : new MediaRecorder(stream);
       streamRef.current = stream;
+      setAudioStream(stream);
       chunksRef.current = [];
       recorder.ondataavailable = (event) => {
         if (event.data.size) chunksRef.current.push(event.data);
@@ -74,11 +195,14 @@ export function IdeaQuickCapture() {
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
         recorderRef.current = null;
+        setAudioStream(null);
         setRecording(false);
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
         if (blob.size) void transcribe(blob, "nota-de-voz.webm");
       };
       recorderRef.current = recorder;
+      recordingRef.current = true;
+      startLiveRecognition();
       recorder.start();
       setRecording(true);
     } catch {
@@ -87,6 +211,8 @@ export function IdeaQuickCapture() {
   }
 
   function stopRecording() {
+    recordingRef.current = false;
+    stopLiveRecognition();
     recorderRef.current?.stop();
   }
 
@@ -94,6 +220,8 @@ export function IdeaQuickCapture() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    liveTranscriptRef.current = "";
+    setLiveTranscript("");
     void transcribe(file, file.name);
   }
 
@@ -154,6 +282,14 @@ export function IdeaQuickCapture() {
           {notes.length.toLocaleString("es-CO")} / {NOTE_LIMIT.toLocaleString("es-CO")}
         </span>
       </div>
+      {recording || transcribing ? (
+        <VoiceRecordingPanel
+          stream={audioStream}
+          recording={recording}
+          liveTranscript={liveTranscript}
+          liveSupported={liveSupported}
+        />
+      ) : null}
       <div className="mt-3 flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-xs text-muted-foreground">
           La primera frase se usara como titulo provisional.
