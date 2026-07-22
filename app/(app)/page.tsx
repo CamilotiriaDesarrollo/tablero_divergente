@@ -3,10 +3,11 @@
 // realizadas), actividad de la semana, distribucion por prioridad, trabajo por
 // proyecto y listas de foco (vencido / hoy / proximo). La urgencia sugiere, el
 // orden lo decide la persona (BLUEPRINT / CLAUDE.md). Sin em-dashes en la copy.
-import { subDays, startOfDay, parseISO, format } from "date-fns";
+import { addDays, subDays, startOfDay, startOfWeek, parseISO, format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   AlertTriangle,
+  CalendarDays,
   CalendarClock,
   CheckCircle2,
   ListTodo,
@@ -25,11 +26,11 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { InicioQuickCapture } from "@/components/shared/inicio-quick-capture";
 import {
   StatCard,
-  WeeklyActivity,
+  WorkloadHeatmap,
   PriorityBreakdown,
   ProjectBreakdown,
   FocusSection,
-  type DaySlot,
+  type WorkloadDay,
   type ProjectSlot,
 } from "@/components/inicio/dashboard";
 import { TaskListDialogButton } from "@/components/inicio/task-list-panel";
@@ -84,10 +85,16 @@ export default async function InicioPage() {
   // --- Foco por fecha ---
   const overdue = openTasks.filter((t) => estaVencida(t.due_at)).sort(byDueAsc);
   const today = openTasks.filter((t) => esHoy(t.due_at)).sort(byDueAsc);
-  const upcoming = openTasks
+  const nextThreeDays = openTasks
     .filter((t) => {
       const d = diasRestantes(t.due_at);
-      return d !== null && d > 0 && d <= 14;
+      return d !== null && d >= 1 && d <= 3;
+    })
+    .sort(byDueAsc);
+  const nextWeek = openTasks
+    .filter((t) => {
+      const d = diasRestantes(t.due_at);
+      return d !== null && d >= 4 && d <= 10;
     })
     .sort(byDueAsc);
 
@@ -110,14 +117,25 @@ export default async function InicioPage() {
     (t) => dayOf(t.completed_at) === todayStr,
   ).length;
 
-  const series: DaySlot[] = Array.from({ length: 7 }, (_, i) => {
-    const d = subDays(now, 6 - i);
-    const key = toDateColumn(d);
+  const dueByDay = new Map<string, TaskWithProject[]>();
+  for (const task of openTasks) {
+    if (!task.due_at) continue;
+    const key = toDateColumn(parseISO(task.due_at));
+    dueByDay.set(key, [...(dueByDay.get(key) ?? []), task]);
+  }
+  const heatmapStart = startOfWeek(now, { weekStartsOn: 1 });
+  const heatmapDays: WorkloadDay[] = Array.from({ length: 16 * 7 }, (_, index) => {
+    const date = addDays(heatmapStart, index);
+    const key = toDateColumn(date);
+    const tasks = dueByDay.get(key) ?? [];
     return {
       key,
-      label: format(d, "EEEEEE", { locale: es }),
-      count: completed.filter((t) => dayOf(t.completed_at) === key).length,
+      label: format(date, "EEEE d 'de' MMMM", { locale: es }),
+      month: format(date, "MMM", { locale: es }),
+      count: tasks.length,
+      highPriority: tasks.filter((task) => task.priority === "alta").length,
       isToday: key === todayStr,
+      isPast: key < todayStr,
     };
   });
 
@@ -232,15 +250,21 @@ export default async function InicioPage() {
             emptyLabel="Sin tareas para hoy. Captura algo arriba si surge."
           />
           <FocusSection
-            title="Proximo · 14 dias"
+            title="Proximos 3 dias"
             icon={CalendarClock}
-            tasks={upcoming}
-            emptyLabel="Nada en el horizonte cercano."
+            tasks={nextThreeDays}
+            emptyLabel="Nada entre manana y los proximos 3 dias."
+          />
+          <FocusSection
+            title="Proxima semana"
+            icon={CalendarDays}
+            tasks={nextWeek}
+            emptyLabel="Nada programado entre 4 y 10 dias."
           />
         </div>
 
         <div className="flex flex-col gap-6">
-          <WeeklyActivity series={series} total={completedWeek} />
+          <WorkloadHeatmap days={heatmapDays} />
           <PriorityBreakdown counts={prio} total={pendientes} />
           <ProjectBreakdown rows={projectRows} />
         </div>
