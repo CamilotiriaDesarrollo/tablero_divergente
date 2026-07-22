@@ -47,8 +47,7 @@ export function VoiceRecordingPanel({
     const canvas = canvasRef.current;
     if (!canvas || !stream || !recording) return;
 
-    const AudioContextClass = window.AudioContext;
-    const audioContext = new AudioContextClass();
+    const audioContext = new window.AudioContext();
     const analyser = audioContext.createAnalyser();
     const source = audioContext.createMediaStreamSource(stream);
     analyser.fftSize = 512;
@@ -157,3 +156,4 @@ export function VoiceRecordingPanel({
     </div>
   );
 }
+
