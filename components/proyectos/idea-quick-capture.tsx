@@ -5,7 +5,15 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileAudio, Lightbulb, LoaderCircle, Mic, Square } from "lucide-react";
+import {
+  CircleCheck,
+  FileAudio,
+  Lightbulb,
+  LoaderCircle,
+  Mic,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,7 +53,8 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 export function IdeaQuickCapture() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [notes, setNotes] = useState("");
+  const [sections, setSections] = useState([""]);
+  const [activeSection, setActiveSection] = useState(0);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
@@ -58,6 +67,9 @@ export function IdeaQuickCapture() {
   const recordingRef = useRef(false);
   const finalLiveTranscriptRef = useRef("");
   const liveTranscriptRef = useRef("");
+  const activeSectionRef = useRef(0);
+
+  const notesLength = sections.join("\n\n").length;
 
   useEffect(() => {
     return () => {
@@ -68,10 +80,55 @@ export function IdeaQuickCapture() {
     };
   }, []);
 
-  function appendToNotes(text: string) {
-    setNotes((current) =>
-      [current.trim(), text.trim()].filter(Boolean).join("\n\n").slice(0, NOTE_LIMIT),
-    );
+  function selectSection(index: number) {
+    activeSectionRef.current = index;
+    setActiveSection(index);
+  }
+
+  function updateSection(index: number, value: string) {
+    setSections((current) => {
+      const otherLength = current.reduce(
+        (total, section, sectionIndex) =>
+          total + (sectionIndex === index ? 0 : section.length),
+        Math.max(0, (current.length - 1) * 2),
+      );
+      const next = [...current];
+      next[index] = value.slice(0, Math.max(0, NOTE_LIMIT - otherLength));
+      return next;
+    });
+  }
+
+  function appendToActiveSection(text: string) {
+    setSections((current) => {
+      const index = Math.min(activeSectionRef.current, current.length - 1);
+      const otherLength = current.reduce(
+        (total, section, sectionIndex) =>
+          total + (sectionIndex === index ? 0 : section.length),
+        Math.max(0, (current.length - 1) * 2),
+      );
+      const next = [...current];
+      const combined = [next[index].trim(), text.trim()].filter(Boolean).join("\n\n");
+      next[index] = combined.slice(0, Math.max(0, NOTE_LIMIT - otherLength));
+      return next;
+    });
+  }
+
+  function addSection() {
+    if (notesLength >= NOTE_LIMIT) {
+      toast.error("Alcanzaste el limite de la idea.");
+      return;
+    }
+    const nextIndex = sections.length;
+    setSections((current) => [...current, ""]);
+    selectSection(nextIndex);
+    window.setTimeout(() => document.getElementById(`idea-note-${nextIndex}`)?.focus(), 0);
+  }
+
+  function removeSection(index: number) {
+    if (sections.length === 1) return;
+    setSections((current) => current.filter((_, sectionIndex) => sectionIndex !== index));
+    const nextActive = Math.max(0, Math.min(activeSectionRef.current, sections.length - 2));
+    selectSection(nextActive);
   }
 
   function startLiveRecognition() {
@@ -155,12 +212,12 @@ export function IdeaQuickCapture() {
       if (!response.ok || !transcript) {
         throw new Error(result.error ?? "No se pudo transcribir el audio.");
       }
-      appendToNotes(transcript);
+      appendToActiveSection(transcript);
       toast.success("Nota de voz transcrita");
     } catch (error) {
       const fallback = liveTranscriptRef.current.trim();
       if (fallback) {
-        appendToNotes(fallback);
+        appendToActiveSection(fallback);
         toast.warning("Se uso la transcripcion provisional", {
           description: "Groq no respondio, pero conservamos el texto reconocido en vivo.",
         });
@@ -227,7 +284,7 @@ export function IdeaQuickCapture() {
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const note = notes.trim();
+    const note = sections.map((section) => section.trim()).filter(Boolean).join("\n\n");
     if (!note) {
       toast.error("Escribe o dicta tu idea", {
         description: "Luego podras desarrollarla y ponerle un titulo.",
@@ -244,7 +301,8 @@ export function IdeaQuickCapture() {
           status: "idea",
         });
         toast.success("Idea guardada");
-        setNotes("");
+        setSections([""]);
+        selectSection(0);
         router.refresh();
       } catch (error) {
         const message =
@@ -263,24 +321,62 @@ export function IdeaQuickCapture() {
     >
       <div className="flex items-center gap-2">
         <Lightbulb aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
-        <Label htmlFor="idea-note" className="font-heading text-base font-medium">
+        <Label htmlFor="idea-note-0" className="font-heading text-base font-medium">
           Nueva idea de contenido
         </Label>
       </div>
-      <div className="relative mt-4">
-        <Textarea
-          id="idea-note"
-          value={notes}
-          onChange={(event) => setNotes(event.target.value.slice(0, NOTE_LIMIT))}
-          placeholder="Escribe la idea como te salga: angulo, ejemplos, referencias, una pregunta o un borrador completo..."
-          aria-label="Nota de la idea"
-          rows={7}
-          maxLength={NOTE_LIMIT}
-          className="min-h-44 resize-y pr-3 pb-7"
-        />
-        <span className="pointer-events-none absolute right-3 bottom-2 font-mono text-xs text-muted-foreground">
-          {notes.length.toLocaleString("es-CO")} / {NOTE_LIMIT.toLocaleString("es-CO")}
-        </span>
+      <div className="mt-4 space-y-3">
+        {sections.map((section, index) => (
+          <div
+            key={index}
+            className={
+              activeSection === index
+                ? "rounded-lg ring-2 ring-primary/50"
+                : "rounded-lg ring-1 ring-foreground/10"
+            }
+          >
+            <div className="flex h-9 items-center justify-between border-b px-3">
+              <Label htmlFor={`idea-note-${index}`} className="text-xs text-muted-foreground">
+                Nota {index + 1}
+              </Label>
+              {sections.length > 1 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => removeSection(index)}
+                  aria-label={`Eliminar nota ${index + 1}`}
+                  title="Eliminar nota"
+                >
+                  <Trash2 />
+                </Button>
+              ) : null}
+            </div>
+            <Textarea
+              id={`idea-note-${index}`}
+              value={section}
+              onFocus={() => selectSection(index)}
+              onChange={(event) => updateSection(index, event.target.value)}
+              placeholder={
+                index === 0
+                  ? "Escribe la idea como te salga: angulo, ejemplos, referencias o un borrador completo..."
+                  : "Suma otra nota, enfoque, ejemplo o desarrollo de esta idea..."
+              }
+              aria-label={`Nota ${index + 1} de la idea`}
+              rows={index === 0 ? 6 : 4}
+              className="min-h-28 resize-y rounded-t-none border-0 shadow-none focus-visible:ring-0"
+            />
+          </div>
+        ))}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={addSection}>
+            <Plus />
+            Agregar otra nota
+          </Button>
+          <span className="font-mono text-xs text-muted-foreground">
+            {notesLength.toLocaleString("es-CO")} / {NOTE_LIMIT.toLocaleString("es-CO")}
+          </span>
+        </div>
       </div>
       {recording || transcribing ? (
         <VoiceRecordingPanel
@@ -304,13 +400,18 @@ export function IdeaQuickCapture() {
           />
           <Button
             type="button"
-            variant="outline"
-            size="sm"
+            variant={recording ? "default" : "outline"}
+            size={recording ? "default" : "sm"}
             onClick={recording ? stopRecording : startRecording}
             disabled={transcribing}
+            className={
+              recording
+                ? "bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500"
+                : undefined
+            }
           >
-            {recording ? <Square className="fill-current" /> : <Mic />}
-            {recording ? "Detener" : "Grabar nota"}
+            {recording ? <CircleCheck /> : <Mic />}
+            {recording ? "Terminar y transcribir" : "Grabar nota"}
           </Button>
           <Button
             type="button"
