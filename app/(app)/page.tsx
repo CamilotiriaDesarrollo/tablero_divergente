@@ -14,6 +14,7 @@ import {
   Sun,
 } from "lucide-react";
 import { getAllBoardTasks, getOpenTasks, getCompletedSince } from "@/lib/db/tasks";
+import { getProjectOptions } from "@/lib/db/projects";
 import type { Priority, TaskWithProject } from "@/types/db";
 import { isSupabaseConfigured } from "@/lib/config";
 import {
@@ -60,12 +61,14 @@ export default async function InicioPage() {
   let openTasks: TaskWithProject[] = [];
   let completed: TaskWithProject[] = [];
   let allBoardTasks: TaskWithProject[] = [];
+  let projectOptions: Awaited<ReturnType<typeof getProjectOptions>> = [];
   let failed = false;
   try {
-    [openTasks, completed, allBoardTasks] = await Promise.all([
+    [openTasks, completed, allBoardTasks, projectOptions] = await Promise.all([
       getOpenTasks(), // todo + en_progreso, nivel superior, con proyecto
       getCompletedSince(weekStart.toISOString()),
       getAllBoardTasks(),
+      getProjectOptions({ statuses: ["activo"] }),
     ]);
   } catch {
     failed = true;
@@ -136,6 +139,7 @@ export default async function InicioPage() {
       highPriority: tasks.filter((task) => task.priority === "alta").length,
       isToday: key === todayStr,
       isPast: key < todayStr,
+      tasks,
     };
   });
 
@@ -191,7 +195,7 @@ export default async function InicioPage() {
         </p>
       </header>
 
-      <InicioQuickCapture />
+      <InicioQuickCapture projects={projectOptions} />
 
       {/* Indicadores */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

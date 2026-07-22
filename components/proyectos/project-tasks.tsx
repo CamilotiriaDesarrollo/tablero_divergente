@@ -59,7 +59,7 @@ import {
 } from "@/lib/db/actions";
 import { PRIORITY_EMOJI, PRIORITY_LABEL } from "@/lib/utils/urgency";
 import { CATEGORY_EMOJI, CATEGORY_LABEL } from "@/components/tareas/task-constants";
-import { diasRestantesLabel, estaVencida } from "@/lib/utils/dates";
+import { diasRestantesLabel, dueDateTone } from "@/lib/utils/dates";
 import type {
   Phase,
   PhaseOption,
@@ -386,7 +386,6 @@ function TaskRow({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const done = task.status === "hecho";
-  const overdue = !done && estaVencida(task.due_at);
   const categoryEmoji = task.category ? CATEGORY_EMOJI[task.category] : undefined;
 
   function toggle() {
@@ -458,7 +457,7 @@ function TaskRow({
       <span
         className={cn(
           "shrink-0 font-mono text-xs tabular-nums",
-          overdue ? "text-priority-alta" : "text-muted-foreground",
+          dueDateTone(task.due_at, done),
         )}
       >
         {diasRestantesLabel(task.due_at)}

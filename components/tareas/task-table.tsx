@@ -11,7 +11,7 @@ import {
   reopenTaskAction,
 } from "@/lib/db/actions";
 import { byUrgencyDesc } from "@/lib/utils/urgency";
-import { formatFecha, diasRestantesLabel, estaVencida } from "@/lib/utils/dates";
+import { formatFecha, diasRestantesLabel, dueDateTone } from "@/lib/utils/dates";
 import {
   Table,
   TableHeader,
@@ -27,6 +27,7 @@ import { TaskActionsMenu } from "@/components/tareas/task-actions-menu";
 import { TASK_STATUS_LABEL } from "@/components/tareas/task-constants";
 import { useRunAction } from "@/components/tareas/use-run-action";
 import { cn } from "@/lib/utils";
+import { projectColorValue } from "@/components/proyectos/project-colors";
 
 type SortKey = "title" | "project" | "priority" | "due_at" | "urgency" | "status";
 type SortDirection = "asc" | "desc";
@@ -118,7 +119,6 @@ function TaskRow({
 }) {
   const { run } = useRunAction();
   const done = task.status === "hecho";
-  const vencida = !done && estaVencida(task.due_at);
 
   return (
     <TableRow>
@@ -149,7 +149,7 @@ function TaskRow({
       </TableCell>
       <TableCell className="hidden md:table-cell">
         {task.project ? (
-          <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+          <span className="inline-flex items-center gap-1 text-sm" style={{ color: projectColorValue(task.project.color) }}>
             {task.project.icon && <span aria-hidden>{task.project.icon}</span>}
             <span className="max-w-32 truncate">{task.project.name}</span>
           </span>
@@ -160,13 +160,13 @@ function TaskRow({
       <TableCell>
         <PriorityBadge priority={task.priority} showLabel={false} />
       </TableCell>
-      <TableCell className="hidden font-mono text-xs tabular-nums text-muted-foreground sm:table-cell">
+      <TableCell className={cn("hidden font-mono text-xs tabular-nums sm:table-cell", dueDateTone(task.due_at, done))}>
         {task.due_at ? formatFecha(task.due_at) : "·"}
       </TableCell>
       <TableCell
         className={cn(
           "hidden font-mono text-xs tabular-nums lg:table-cell",
-          vencida ? "font-medium text-priority-alta" : "text-muted-foreground",
+          dueDateTone(task.due_at, done),
         )}
       >
         {task.due_at ? diasRestantesLabel(task.due_at) : "·"}

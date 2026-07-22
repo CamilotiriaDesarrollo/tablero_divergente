@@ -5,11 +5,12 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { diasRestantesLabel } from "@/lib/utils/dates";
+import { diasRestantesLabel, dueDateTone } from "@/lib/utils/dates";
 import { PRIORITY_EMOJI, PRIORITY_LABEL } from "@/lib/utils/urgency";
 import type { Priority, TaskWithProject } from "@/types/db";
 import { TaskListPanel } from "@/components/inicio/task-list-panel";
 import { projectColorValue } from "@/components/proyectos/project-colors";
+export { WorkloadHeatmap } from "@/components/inicio/workload-heatmap";
 
 // ---------- Tarjeta de indicador (KPI) ----------
 
@@ -131,123 +132,7 @@ export interface WorkloadDay {
   isToday: boolean;
   isPast: boolean;
   month: string;
-}
-
-function workloadTone(day: WorkloadDay): string {
-  if (day.isPast) return "bg-muted/30";
-  const score = day.count + day.highPriority;
-  if (score >= 5) return "bg-red-500";
-  if (score === 4) return "bg-amber-400 dark:bg-amber-500";
-  if (score === 3) return "bg-emerald-600 dark:bg-emerald-500";
-  if (score === 2) return "bg-emerald-400 dark:bg-emerald-600";
-  if (score === 1) return "bg-emerald-200 dark:bg-emerald-900";
-  return "bg-muted/70";
-}
-
-export function WorkloadHeatmap({ days }: { days: WorkloadDay[] }) {
-  const weekCount = Math.ceil(days.length / 7);
-  const weekStarts = Array.from({ length: weekCount }, (_, index) => days[index * 7]);
-  const alerts = days
-    .filter((day) => !day.isPast && day.count + day.highPriority >= 5)
-    .sort(
-      (a, b) =>
-        b.count + b.highPriority - (a.count + a.highPriority) ||
-        a.key.localeCompare(b.key),
-    )
-    .slice(0, 3);
-
-  return (
-    <div className="flex flex-col gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-      <div className="flex items-baseline justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold">Alertas de actividad</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Carga de entregas pendientes por dia
-          </p>
-        </div>
-        <span className="text-xs text-muted-foreground">Proximos 4 meses</span>
-      </div>
-
-      <div className="overflow-x-auto pb-1">
-        <div className="min-w-[30rem]">
-          <div
-            className="ml-7 grid gap-1"
-            style={{ gridTemplateColumns: `repeat(${weekCount}, minmax(0, 1fr))` }}
-          >
-            {weekStarts.map((day, index) => {
-              const previous = index > 0 ? weekStarts[index - 1]?.month : null;
-              return (
-                <span
-                  key={day.key}
-                  className="h-4 text-[10px] text-muted-foreground capitalize"
-                >
-                  {index === 0 || day.month !== previous ? day.month : ""}
-                </span>
-              );
-            })}
-          </div>
-          <div className="mt-1 flex gap-1.5">
-            <div className="grid w-5 shrink-0 grid-rows-7 gap-1 text-[9px] text-muted-foreground">
-              {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((label, index) => (
-                <span key={`${label}-${index}`} className="flex items-center">
-                  {label}
-                </span>
-              ))}
-            </div>
-            <div
-              className="grid flex-1 grid-flow-col grid-rows-7 gap-1"
-              style={{ gridTemplateColumns: `repeat(${weekCount}, minmax(0, 1fr))` }}
-            >
-              {days.map((day) => (
-                <span
-                  key={day.key}
-                  title={`${day.label}: ${day.count} pendientes${day.highPriority ? `, ${day.highPriority} de prioridad alta` : ""}`}
-                  className={cn(
-                    "aspect-square min-h-3 rounded-[2px] ring-1 ring-black/5",
-                    workloadTone(day),
-                    day.isToday && "ring-2 ring-primary ring-offset-1 ring-offset-card",
-                  )}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted-foreground">
-        <div className="flex items-center gap-1">
-          <span>Menos carga</span>
-          <span className="size-3 rounded-[2px] bg-muted/70" />
-          <span className="size-3 rounded-[2px] bg-emerald-200 dark:bg-emerald-900" />
-          <span className="size-3 rounded-[2px] bg-emerald-400 dark:bg-emerald-600" />
-          <span className="size-3 rounded-[2px] bg-emerald-600 dark:bg-emerald-500" />
-          <span className="size-3 rounded-[2px] bg-amber-400 dark:bg-amber-500" />
-          <span className="size-3 rounded-[2px] bg-red-500" />
-          <span>Mas carga</span>
-        </div>
-        <span>Prioridad alta aumenta la alerta</span>
-      </div>
-
-      <div className="border-t pt-3">
-        {alerts.length ? (
-          <ul className="space-y-1.5">
-            {alerts.map((day) => (
-              <li key={day.key} className="flex items-center justify-between gap-3 text-xs">
-                <span className="truncate capitalize text-muted-foreground">{day.label}</span>
-                <span className="shrink-0 font-mono text-red-500">
-                  {day.count} tareas{day.highPriority ? ` / ${day.highPriority} altas` : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            No hay dias con carga critica en este horizonte.
-          </p>
-        )}
-      </div>
-    </div>
-  );
+  tasks: TaskWithProject[];
 }
 
 // ---------- Distribucion por prioridad (barra apilada) ----------
@@ -387,14 +272,17 @@ export function FocusRow({ task }: { task: TaskWithProject }) {
       </span>
       <span className="min-w-0 flex-1 truncate text-sm">{task.title}</span>
       {task.project?.name ? (
-        <span className="hidden max-w-[8rem] truncate text-xs text-muted-foreground sm:inline">
+        <span
+          className="hidden max-w-[8rem] truncate text-xs sm:inline"
+          style={{ color: projectColorValue(task.project.color) }}
+        >
           {task.project.name}
         </span>
       ) : null}
       <span
         className={cn(
           "shrink-0 font-mono text-xs tabular-nums",
-          task.due_at ? "text-muted-foreground" : "text-muted-foreground/50",
+          dueDateTone(task.due_at, task.status === "hecho"),
         )}
       >
         {diasRestantesLabel(task.due_at)}

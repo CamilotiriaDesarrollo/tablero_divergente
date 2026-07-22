@@ -7,13 +7,14 @@ import {
   completeTaskAction,
   reopenTaskAction,
 } from "@/lib/db/actions";
-import { formatFecha, diasRestantesLabel, estaVencida } from "@/lib/utils/dates";
+import { formatFecha, diasRestantesLabel, dueDateTone } from "@/lib/utils/dates";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PriorityBadge } from "@/components/tareas/priority-badge";
 import { UrgencyMeter } from "@/components/tareas/urgency-meter";
 import { TaskActionsMenu } from "@/components/tareas/task-actions-menu";
 import { useRunAction } from "@/components/tareas/use-run-action";
 import { cn } from "@/lib/utils";
+import { projectColorValue } from "@/components/proyectos/project-colors";
 
 export function TaskCard({
   task,
@@ -24,7 +25,6 @@ export function TaskCard({
 }) {
   const { run } = useRunAction();
   const done = task.status === "hecho";
-  const vencida = !done && estaVencida(task.due_at);
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 shadow-xs transition-colors hover:border-border/80">
@@ -55,7 +55,10 @@ export function TaskCard({
       <div className="flex flex-wrap items-center gap-1.5 pl-6">
         {task.priority && <PriorityBadge priority={task.priority} />}
         {task.project && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-border/60 px-2 py-0.5 text-xs text-muted-foreground">
+          <span
+            className="inline-flex items-center gap-1 rounded-full border border-border/60 px-2 py-0.5 text-xs"
+            style={{ color: projectColorValue(task.project.color) }}
+          >
             {task.project.icon && <span aria-hidden>{task.project.icon}</span>}
             <span className="max-w-28 truncate">{task.project.name}</span>
           </span>
@@ -63,18 +66,16 @@ export function TaskCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 pl-6">
-        <div className="flex items-center gap-2 font-mono text-xs tabular-nums text-muted-foreground">
+        <div className="flex items-center gap-2 font-mono text-xs tabular-nums">
           {task.due_at ? (
             <>
-              <span>{formatFecha(task.due_at)}</span>
-              <span
-                className={cn(vencida && "font-medium text-priority-alta")}
-              >
+              <span className={dueDateTone(task.due_at, done)}>{formatFecha(task.due_at)}</span>
+              <span className={dueDateTone(task.due_at, done)}>
                 {diasRestantesLabel(task.due_at)}
               </span>
             </>
           ) : (
-            <span>sin fecha</span>
+            <span className={dueDateTone(null, done)}>sin fecha</span>
           )}
         </div>
         <UrgencyMeter

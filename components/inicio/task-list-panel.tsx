@@ -14,9 +14,10 @@ import {
 } from "@/components/ui/dialog";
 import { useRunAction } from "@/components/tareas/use-run-action";
 import { PRIORITY_EMOJI } from "@/lib/utils/urgency";
-import { diasRestantesLabel } from "@/lib/utils/dates";
+import { diasRestantesLabel, dueDateTone } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils";
 import type { TaskWithProject } from "@/types/db";
+import { projectColorValue } from "@/components/proyectos/project-colors";
 
 function DashboardTaskRow({
   task,
@@ -55,18 +56,21 @@ function DashboardTaskRow({
         {task.title}
       </button>
       {task.project?.name ? (
-        <span className="hidden max-w-[8rem] truncate text-xs text-muted-foreground sm:inline">
+        <span
+          className="hidden max-w-[8rem] truncate text-xs sm:inline"
+          style={{ color: projectColorValue(task.project.color) }}
+        >
           {task.project.name}
         </span>
       ) : null}
-      <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+      <span className={cn("shrink-0 font-mono text-xs tabular-nums", dueDateTone(task.due_at, done))}>
         {diasRestantesLabel(task.due_at)}
       </span>
     </div>
   );
 }
 
-function TaskListDialog({
+export function TaskListDialog({
   title,
   tasks,
   open,
@@ -82,11 +86,11 @@ function TaskListDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[min(92vw,72rem)] max-w-[72rem]">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-border p-1">
+          <div className="max-h-[72vh] overflow-y-auto rounded-lg border border-border p-2">
             {tasks.length ? (
               tasks.map((task) => (
                 <DashboardTaskRow key={task.id} task={task} onOpen={setSelected} />

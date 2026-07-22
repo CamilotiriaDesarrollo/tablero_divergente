@@ -76,6 +76,22 @@ export function diasRestantesLabel(dueAt: string | Date | null | undefined): str
   return `en ${d} d`;
 }
 
+/** Color de entrega compartido: rojo para hoy, rosados mas suaves a futuro. */
+export function dueDateTone(
+  dueAt: string | Date | null | undefined,
+  done = false,
+): string {
+  if (done) return "text-muted-foreground";
+  const d = diasRestantes(dueAt);
+  if (d === null) return "text-muted-foreground/60";
+  if (d < 0) return "font-medium text-red-700 dark:text-red-400";
+  if (d === 0) return "font-medium text-red-500 dark:text-red-400";
+  if (d <= 3) return "text-rose-500 dark:text-rose-400";
+  if (d <= 7) return "text-pink-500 dark:text-pink-400";
+  if (d <= 14) return "text-pink-400 dark:text-pink-300";
+  return "text-rose-400/80 dark:text-rose-300/80";
+}
+
 /** Formato de fecha para la interfaz (es). */
 export function formatFecha(
   value: string | Date | null | undefined,

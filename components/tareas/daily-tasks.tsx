@@ -11,7 +11,7 @@ import {
   completeTaskAction,
   reopenTaskAction,
 } from "@/lib/db/actions";
-import { formatFecha, diasRestantesLabel, estaVencida } from "@/lib/utils/dates";
+import { formatFecha, diasRestantesLabel, dueDateTone } from "@/lib/utils/dates";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -33,7 +33,6 @@ function DailyRow({
   const { run } = useRunAction();
   const router = useRouter();
   const done = task.status === "hecho";
-  const vencida = !done && estaVencida(task.due_at);
 
   async function stopBeingDaily() {
     onRemoved(task.id);
@@ -78,9 +77,7 @@ function DailyRow({
             <span
               className={cn(
                 "font-mono text-xs tabular-nums",
-                vencida
-                  ? "font-medium text-priority-alta"
-                  : "text-muted-foreground",
+                dueDateTone(task.due_at, done),
               )}
             >
               {formatFecha(task.due_at)} · {diasRestantesLabel(task.due_at)}

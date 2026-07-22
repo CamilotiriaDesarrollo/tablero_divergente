@@ -16,7 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { completeTaskAction, reopenTaskAction } from "@/lib/db/actions";
-import { diasRestantesLabel, formatFecha } from "@/lib/utils/dates";
+import { diasRestantesLabel, formatFecha, dueDateTone } from "@/lib/utils/dates";
+import { projectColorValue } from "@/components/proyectos/project-colors";
 import { PRIORITY_EMOJI, PRIORITY_LABEL, urgencySignal } from "@/lib/utils/urgency";
 import type { Priority, TaskWithProject } from "@/types/db";
 
@@ -104,7 +105,10 @@ export function TaskDetailDialog({
         <div className="divide-y divide-border">
           <Row label="Proyecto">
             {task.project ? (
-              <span className="inline-flex items-center gap-1.5">
+              <span
+                className="inline-flex items-center gap-1.5"
+                style={{ color: projectColorValue(task.project.color) }}
+              >
                 {task.project.icon ? <span aria-hidden>{task.project.icon}</span> : null}
                 {task.project.name}
               </span>
@@ -131,7 +135,7 @@ export function TaskDetailDialog({
             {task.due_at ? (
               <span className="inline-flex items-center gap-2">
                 <span>{formatFecha(task.due_at, "d 'de' LLLL")}</span>
-                <span className="font-mono text-xs text-muted-foreground">
+                <span className={cn("font-mono text-xs", dueDateTone(task.due_at, done))}>
                   {diasRestantesLabel(task.due_at)}
                 </span>
               </span>

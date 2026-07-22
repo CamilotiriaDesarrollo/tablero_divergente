@@ -1,8 +1,8 @@
 // app/(app)/proyectos/page.tsx
 // Galeria + tablero de proyectos "reales" (RSC). Obtiene los datos iniciales con
-// lib/db (getProjectsWithCounts) y los pasa al Client Component de la galeria.
+// lib/db (getProjectsWithMetrics) y los pasa al Client Component de la galeria.
 // El banco de ideas (status 'idea') vive en /ideas, no aqui.
-import { getProjectsWithCounts } from "@/lib/db/projects";
+import { getProjectsWithMetrics } from "@/lib/db/projects";
 import { ProjectGallery } from "@/components/proyectos/project-gallery";
 
 export const metadata = {
@@ -10,7 +10,7 @@ export const metadata = {
 };
 
 export default async function ProyectosPage() {
-  const projects = await getProjectsWithCounts({
+  const projects = await getProjectsWithMetrics({
     statuses: ["activo", "pausado", "hecho"],
   });
 

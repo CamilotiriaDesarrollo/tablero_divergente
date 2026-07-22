@@ -2,7 +2,7 @@
 // components/proyectos/project-form.tsx
 // Formulario de proyecto (crear/editar). Client Component: muta SOLO via los
 // *Action de lib/db/actions dentro de useTransition; tras exito, router.refresh().
-// Campos: nombre, descripcion, estado, color (paleta pequena) e icono (emoji).
+// Campos: nombre, descripcion, estado, color (paleta amplia) e icono (emoji).
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -32,6 +32,7 @@ import {
 import {
   PROJECT_COLORS,
   DEFAULT_PROJECT_COLOR,
+  projectColorValue,
 } from "@/components/proyectos/project-colors";
 import {
   PROJECT_ICON_OPTIONS,
@@ -162,7 +163,7 @@ export function ProjectForm({
 
         <div className="space-y-2">
           <Label>Color</Label>
-          <div className="flex flex-wrap items-center gap-2 pt-1">
+          <div className="grid grid-cols-8 gap-2 pt-1">
             {PROJECT_COLORS.map((c) => {
               const selected = c.token === color;
               return (
@@ -183,6 +184,18 @@ export function ProjectForm({
                 />
               );
             })}
+            <input
+              type="color"
+              value={projectColorValue(color)}
+              onChange={(event) => setColor(event.target.value)}
+              aria-label="Color personalizado"
+              title="Color personalizado"
+              className={cn(
+                "size-6 cursor-pointer rounded-full border-0 bg-transparent p-0 outline-none transition-transform focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                !PROJECT_COLORS.some((item) => item.token === color) &&
+                  "ring-2 ring-foreground ring-offset-2 ring-offset-background",
+              )}
+            />
           </div>
         </div>
       </div>

@@ -327,6 +327,11 @@ export type TaskWithProject = Task & {
 };
 // Proyecto con conteo de tareas (uso en galeria/tablero).
 export type ProjectWithCount = Project & { task_count?: number; open_count?: number };
+export type ProjectWithMetrics = ProjectWithCount & {
+  done_count: number;
+  high_priority_count: number;
+  overdue_count: number;
+};
 
 // --- Tablas del bot (BLUEPRINT-BOT seccion 4) ---
 

@@ -9,13 +9,14 @@ import {
   completeTaskAction,
   reopenTaskAction,
 } from "@/lib/db/actions";
-import { diasRestantesLabel, estaVencida } from "@/lib/utils/dates";
+import { diasRestantesLabel, dueDateTone } from "@/lib/utils/dates";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PriorityBadge } from "@/components/tareas/priority-badge";
 import { UrgencyMeter } from "@/components/tareas/urgency-meter";
 import { TaskActionsMenu } from "@/components/tareas/task-actions-menu";
 import { useRunAction } from "@/components/tareas/use-run-action";
 import { cn } from "@/lib/utils";
+import { projectColorValue } from "@/components/proyectos/project-colors";
 
 export function KanbanCard({
   task,
@@ -35,7 +36,6 @@ export function KanbanCard({
   } = useSortable({ id: task.id });
 
   const done = task.status === "hecho";
-  const vencida = !done && estaVencida(task.due_at);
 
   return (
     <div
@@ -92,7 +92,10 @@ export function KanbanCard({
           <PriorityBadge priority={task.priority} showLabel={false} />
         )}
         {task.project && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-border/60 px-1.5 py-0.5 text-xs text-muted-foreground">
+          <span
+            className="inline-flex items-center gap-1 rounded-full border border-border/60 px-1.5 py-0.5 text-xs"
+            style={{ color: projectColorValue(task.project.color) }}
+          >
             {task.project.icon && <span aria-hidden>{task.project.icon}</span>}
             <span className="max-w-24 truncate">{task.project.name}</span>
           </span>
@@ -103,7 +106,7 @@ export function KanbanCard({
         <span
           className={cn(
             "font-mono text-xs tabular-nums",
-            vencida ? "font-medium text-priority-alta" : "text-muted-foreground",
+            dueDateTone(task.due_at, done),
           )}
         >
           {task.due_at ? diasRestantesLabel(task.due_at) : "sin fecha"}

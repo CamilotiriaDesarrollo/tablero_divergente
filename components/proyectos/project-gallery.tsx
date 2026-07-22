@@ -8,9 +8,9 @@ import { FolderPlus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProjectCard } from "@/components/proyectos/project-card";
 import { ProjectFormDialog } from "@/components/proyectos/project-form";
-import type { ProjectWithCount } from "@/types/db";
+import type { ProjectWithMetrics } from "@/types/db";
 
-export function ProjectGallery({ projects }: { projects: ProjectWithCount[] }) {
+export function ProjectGallery({ projects }: { projects: ProjectWithMetrics[] }) {
   const [createOpen, setCreateOpen] = useState(false);
 
   if (projects.length === 0) {
@@ -40,7 +40,11 @@ export function ProjectGallery({ projects }: { projects: ProjectWithCount[] }) {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {projects.map((project) => (
-          <ProjectCard key={project.id} project={project} />
+          <ProjectCard
+            key={project.id}
+            project={project}
+            maxHighPriority={Math.max(1, ...projects.map((item) => item.high_priority_count))}
+          />
         ))}
       </div>
 

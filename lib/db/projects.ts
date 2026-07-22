@@ -13,7 +13,10 @@ import type {
   ProjectStatus,
   ProjectUpdate,
   ProjectWithCount,
+  ProjectWithMetrics,
 } from "@/types/db";
+import { getTasks } from "@/lib/db/tasks";
+import { toDateColumn } from "@/lib/utils/dates";
 
 async function client() {
   return await dbContext().getClient();
@@ -96,6 +99,38 @@ export async function getProjectsWithCounts(opts?: {
   });
 }
 
+/** Proyectos con indicadores de trabajo para su galeria principal. */
+export async function getProjectsWithMetrics(opts?: {
+  statuses?: ProjectStatus[];
+}): Promise<ProjectWithMetrics[]> {
+  const [projects, tasks] = await Promise.all([
+    getProjects(opts),
+    getTasks({ topLevelOnly: true }),
+  ]);
+  const today = toDateColumn(new Date());
+  const tasksByProject = new Map<string, typeof tasks>();
+
+  for (const task of tasks) {
+    if (!task.project_id) continue;
+    tasksByProject.set(task.project_id, [...(tasksByProject.get(task.project_id) ?? []), task]);
+  }
+
+  return projects.map((project) => {
+    const projectTasks = tasksByProject.get(project.id) ?? [];
+    const openTasks = projectTasks.filter((task) => task.status !== "hecho");
+    return {
+      ...project,
+      task_count: projectTasks.length,
+      open_count: openTasks.length,
+      done_count: projectTasks.filter((task) => task.status === "hecho").length,
+      high_priority_count: openTasks.filter((task) => task.priority === "alta").length,
+      overdue_count: openTasks.filter(
+        (task) => task.due_at !== null && task.due_at < today,
+      ).length,
+    };
+  });
+}
+
 export async function getProjectById(id: string): Promise<Project | null> {
   if (!isSupabaseConfigured()) return null;
   const supabase = await client();
@@ -108,7 +143,9 @@ export async function getProjectById(id: string): Promise<Project | null> {
 }
 
 /** Nombres/ids de proyectos para selects y para el asistente. */
-export async function getProjectOptions(): Promise<
+export async function getProjectOptions(opts?: {
+  statuses?: ProjectStatus[];
+}): Promise<
   Pick<Project, "id" | "name" | "color" | "icon" | "status">[]
 > {
   if (!isSupabaseConfigured()) return [];
@@ -119,6 +156,7 @@ export async function getProjectOptions(): Promise<
     .order("name", { ascending: true });
   const uid = ownerId();
   if (uid) query = query.eq("user_id", uid);
+  if (opts?.statuses?.length) query = query.in("status", opts.statuses);
   const { data, error } = await query;
   if (error) throw error;
   return data ?? [];
