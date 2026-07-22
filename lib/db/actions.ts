@@ -26,7 +26,7 @@ const isoDate = z
 
 const createProjectSchema = z.object({
   name: z.string().trim().min(1, "El nombre no puede estar vacio").max(200),
-  description: z.string().trim().max(2000).nullish(),
+  description: z.string().trim().max(8000).nullish(),
   status: projectStatus.optional(),
   type: z.array(z.string()).nullish(),
   color: z.string().nullish(),

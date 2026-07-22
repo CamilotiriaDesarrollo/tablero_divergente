@@ -1,6 +1,6 @@
 "use client";
-// Tarjeta arrastrable del Kanban. El arrastre vive en un asa dedicada para que
-// la casilla, el titulo y el menu sigan siendo clicables. Compacta por diseno.
+// Tarjeta arrastrable del tablero. Se puede tomar desde cualquier zona libre;
+// el asa conserva soporte de teclado y hace visible la accion.
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
@@ -42,14 +42,20 @@ export function KanbanCard({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "flex flex-col gap-2 rounded-lg border border-border bg-card p-2.5 shadow-xs",
+        "flex cursor-grab flex-col gap-2 rounded-lg border border-border bg-card p-2.5 shadow-xs active:cursor-grabbing",
         isDragging && "opacity-40",
       )}
+      onPointerDown={(event) => {
+        // Los controles internos conservan su propio clic y el asa su arrastre.
+        if (event.target instanceof Element && event.target.closest("button")) return;
+        listeners?.onPointerDown?.(event);
+      }}
     >
       <div className="flex items-start gap-1.5">
         <button
           type="button"
           aria-label="Arrastrar tarea"
+          title="Arrastrar tarea"
           className="mt-0.5 cursor-grab touch-none rounded-sm text-muted-foreground/60 hover:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:cursor-grabbing"
           {...attributes}
           {...listeners}

@@ -260,7 +260,15 @@ export async function createTask(
 ): Promise<Task> {
   const supabase = await client();
   const userId = await requireUserId();
-  const payload: TaskInsert = { ...input, user_id: userId };
+  // Defaults de dominio: cualquier origen de creacion conserva fecha recibida
+  // de hoy y prioridad media, salvo que envie un valor explicito.
+  const payload: TaskInsert = {
+    ...input,
+    user_id: userId,
+    priority: input.priority === undefined ? "media" : input.priority,
+    received_at:
+      input.received_at === undefined ? toDateColumn(new Date()) : input.received_at,
+  };
   const first = await supabase.from("tasks").insert(payload).select("*").single();
   // Reintento sin phase_id si la columna aun no existe (migracion 0005 pendiente).
   if (first.error && isMissingPhaseColumn(first.error) && "phase_id" in payload) {

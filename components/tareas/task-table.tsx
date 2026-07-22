@@ -1,10 +1,10 @@
 "use client";
 // Tabla estilo Notion. Columnas: titulo, proyecto, prioridad, fecha de entrega
 // (mono), dias restantes (mono), medidor de urgencia y estado, con acciones por
-// fila. Orden por defecto = MANUAL (el que llega, por position). "Ordenar por
-// urgencia" es opt-in y NUNCA se activa solo (filosofia: los datos no deciden).
+// fila. Orden por defecto = MANUAL (el que llega, por position). Cada encabezado
+// permite ordenar ascendente, descendente y volver al orden manual.
 import { useMemo, useState } from "react";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import type { Task, TaskWithProject } from "@/types/db";
 import {
   completeTaskAction,
@@ -21,13 +21,78 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
 import { PriorityBadge } from "@/components/tareas/priority-badge";
 import { UrgencyMeter } from "@/components/tareas/urgency-meter";
 import { TaskActionsMenu } from "@/components/tareas/task-actions-menu";
 import { TASK_STATUS_LABEL } from "@/components/tareas/task-constants";
 import { useRunAction } from "@/components/tareas/use-run-action";
 import { cn } from "@/lib/utils";
+
+type SortKey = "title" | "project" | "priority" | "due_at" | "urgency" | "status";
+type SortDirection = "asc" | "desc";
+type Sort = { key: SortKey; direction: SortDirection } | null;
+
+const PRIORITY_ORDER = { baja: 1, media: 2, alta: 3 } as const;
+const STATUS_ORDER = { inbox: 1, todo: 2, en_progreso: 3, hecho: 4 } as const;
+const SORT_LABEL: Record<SortKey, string> = {
+  title: "titulo",
+  project: "proyecto",
+  priority: "prioridad",
+  due_at: "entrega",
+  urgency: "urgencia",
+  status: "estado",
+};
+
+function compareText(a: string, b: string) {
+  return a.localeCompare(b, "es", { sensitivity: "base" });
+}
+
+function sortLabel(key: SortKey) {
+  return SORT_LABEL[key];
+}
+
+function compareDate(a: string | null, b: string | null) {
+  if (!a) return b ? 1 : 0;
+  if (!b) return -1;
+  return a.localeCompare(b);
+}
+
+function SortableHead({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  className,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: Sort;
+  onSort: (key: SortKey) => void;
+  className?: string;
+}) {
+  const active = sort?.key === sortKey;
+  const direction = active ? sort.direction : undefined;
+  const Icon = direction === "asc" ? ArrowUp : direction === "desc" ? ArrowDown : ArrowUpDown;
+
+  return (
+    <TableHead
+      className={className}
+      aria-sort={direction === "asc" ? "ascending" : direction === "desc" ? "descending" : "none"}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1 text-left font-medium transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        {label}
+        <Icon
+          className={cn("size-3.5", active ? "text-foreground" : "text-muted-foreground/70")}
+          aria-hidden
+        />
+      </button>
+    </TableHead>
+  );
+}
 
 function StatusPill({ status }: { status: Task["status"] }) {
   return (
@@ -131,13 +196,50 @@ export function TaskTable({
   tasks: TaskWithProject[];
   onEdit: (task: Task) => void;
 }) {
-  const [sortByUrgency, setSortByUrgency] = useState(false);
+  const [sort, setSort] = useState<Sort>(null);
+
+  function toggleSort(key: SortKey) {
+    setSort((current) => {
+      if (current?.key !== key) return { key, direction: "asc" };
+      if (current.direction === "asc") return { key, direction: "desc" };
+      return null;
+    });
+  }
 
   const rows = useMemo(() => {
-    if (!sortByUrgency) return tasks;
-    // Copia: no mutamos el orden manual que llega del servidor.
-    return [...tasks].sort(byUrgencyDesc);
-  }, [tasks, sortByUrgency]);
+    let ordered = tasks;
+
+    if (sort) {
+      const compare = (a: TaskWithProject, b: TaskWithProject) => {
+        switch (sort.key) {
+          case "title":
+            return compareText(a.title, b.title);
+          case "project":
+            return compareText(a.project?.name ?? "\uffff", b.project?.name ?? "\uffff");
+          case "priority":
+            return (PRIORITY_ORDER[a.priority ?? "baja"] ?? 0) - (PRIORITY_ORDER[b.priority ?? "baja"] ?? 0);
+          case "due_at":
+            return compareDate(a.due_at, b.due_at);
+          case "urgency":
+            return byUrgencyDesc(b, a);
+          case "status":
+            return STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+        }
+      };
+
+      ordered = [...tasks].sort((a, b) => {
+        const result = compare(a, b);
+        return sort.direction === "asc" ? result : -result;
+      });
+    }
+
+    // Las tareas terminadas quedan visibles para consulta, pero nunca se mezclan
+    // con el trabajo que aun requiere atencion.
+    return [
+      ...ordered.filter((task) => task.status !== "hecho"),
+      ...ordered.filter((task) => task.status === "hecho"),
+    ];
+  }, [tasks, sort]);
 
   if (tasks.length === 0) {
     return (
@@ -154,19 +256,10 @@ export function TaskTable({
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          {sortByUrgency
-            ? "Ordenado por urgencia sugerida. Tu decides el orden real."
-            : "Orden manual. La urgencia solo sugiere."}
+          {sort
+            ? `Ordenado por ${sortLabel(sort.key)} (${sort.direction === "asc" ? "ascendente" : "descendente"}).`
+            : "Orden manual. Las tareas finalizadas quedan al final."}
         </p>
-        <Button
-          variant={sortByUrgency ? "secondary" : "outline"}
-          size="sm"
-          aria-pressed={sortByUrgency}
-          onClick={() => setSortByUrgency((v) => !v)}
-        >
-          <ArrowUpDown />
-          Ordenar por urgencia
-        </Button>
       </div>
 
       <div className="rounded-lg border border-border">
@@ -174,13 +267,13 @@ export function TaskTable({
           <TableHeader>
             <TableRow>
               <TableHead className="w-8" />
-              <TableHead>Titulo</TableHead>
-              <TableHead className="hidden md:table-cell">Proyecto</TableHead>
-              <TableHead>Prioridad</TableHead>
-              <TableHead className="hidden sm:table-cell">Entrega</TableHead>
-              <TableHead className="hidden lg:table-cell">Restan</TableHead>
-              <TableHead>Urgencia</TableHead>
-              <TableHead className="hidden sm:table-cell">Estado</TableHead>
+              <SortableHead label="Titulo" sortKey="title" sort={sort} onSort={toggleSort} />
+              <SortableHead label="Proyecto" sortKey="project" sort={sort} onSort={toggleSort} className="hidden md:table-cell" />
+              <SortableHead label="Prioridad" sortKey="priority" sort={sort} onSort={toggleSort} />
+              <SortableHead label="Entrega" sortKey="due_at" sort={sort} onSort={toggleSort} className="hidden sm:table-cell" />
+              <SortableHead label="Restan" sortKey="due_at" sort={sort} onSort={toggleSort} className="hidden lg:table-cell" />
+              <SortableHead label="Urgencia" sortKey="urgency" sort={sort} onSort={toggleSort} />
+              <SortableHead label="Estado" sortKey="status" sort={sort} onSort={toggleSort} className="hidden sm:table-cell" />
               <TableHead className="w-8" />
             </TableRow>
           </TableHeader>

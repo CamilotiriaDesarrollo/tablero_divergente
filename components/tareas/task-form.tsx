@@ -14,6 +14,7 @@ import type {
 } from "@/types/db";
 import { createTaskAction, updateTaskAction } from "@/lib/db/actions";
 import { PRIORITY_EMOJI, PRIORITY_LABEL } from "@/lib/utils/urgency";
+import { toDateColumn } from "@/lib/utils/dates";
 import {
   Dialog,
   DialogContent,
@@ -103,8 +104,8 @@ export function TaskForm({
       lockedProjectId ?? task?.project_id ?? defaultProjectId ?? NONE_VALUE,
     );
     setPhaseId(task?.phase_id ?? defaultPhaseId ?? NONE_VALUE);
-    setPriority(task?.priority ?? NONE_VALUE);
-    setReceivedAt(task?.received_at ?? "");
+    setPriority(task ? (task.priority ?? NONE_VALUE) : "media");
+    setReceivedAt(task ? (task.received_at ?? "") : toDateColumn(new Date()));
     setDueAt(task?.due_at ?? "");
     setCategory(task?.category ?? NONE_VALUE);
     setResourceUrl(task?.resource_url ?? "");

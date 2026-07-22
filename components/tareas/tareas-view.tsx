@@ -57,7 +57,7 @@ export function TareasView({
           </TabsTrigger>
           <TabsTrigger value="kanban">
             <Columns3 />
-            Kanban
+            Proceso
           </TabsTrigger>
           <TabsTrigger value="tiempo">
             <Clock />

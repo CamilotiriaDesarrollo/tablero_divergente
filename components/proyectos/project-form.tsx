@@ -134,7 +134,7 @@ export function ProjectForm({
           onChange={(event) => setDescription(event.target.value)}
           placeholder="En una linea, de que trata"
           rows={3}
-          maxLength={2000}
+          maxLength={8000}
         />
       </div>
 

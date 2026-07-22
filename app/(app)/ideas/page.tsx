@@ -5,7 +5,7 @@
 import { Lightbulb } from "lucide-react";
 import { getIdeas } from "@/lib/db/projects";
 import { IdeaQuickCapture } from "@/components/proyectos/idea-quick-capture";
-import { IdeaCard } from "@/components/proyectos/idea-card";
+import { IdeasManager } from "@/components/proyectos/ideas-manager";
 
 export const metadata = {
   title: "Banco de ideas",
@@ -15,14 +15,14 @@ export default async function IdeasPage() {
   const ideas = await getIdeas();
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:py-10">
+    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:py-10">
       <header className="mb-6 space-y-1">
         <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
           Banco de ideas
         </h1>
         <p className="text-sm text-muted-foreground">
-          Guarda ideas sueltas sin friccion. Cuando una madure, promuevela a
-          proyecto activo sin perder nada.
+          Captura, desarrolla y organiza ideas de contenido. Cuando una este
+          lista, promovela a proyecto activo sin perder su contexto.
         </p>
       </header>
 
@@ -44,11 +44,7 @@ export default async function IdeasPage() {
           </div>
         </div>
       ) : (
-        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {ideas.map((idea) => (
-            <IdeaCard key={idea.id} idea={idea} />
-          ))}
-        </div>
+        <IdeasManager ideas={ideas} />
       )}
     </main>
   );

@@ -52,14 +52,14 @@ export function DayCreateDialog({
   const [isPending, startTransition] = React.useTransition();
   const [title, setTitle] = React.useState("");
   const [notes, setNotes] = React.useState("");
-  const [prio, setPrio] = React.useState<string>("sin");
+  const [prio, setPrio] = React.useState<string>("media");
 
   // Reinicia el formulario cada vez que se abre para un dia nuevo.
   React.useEffect(() => {
     if (open) {
       setTitle("");
       setNotes("");
-      setPrio("sin");
+      setPrio("media");
     }
   }, [open]);
 

@@ -12,7 +12,7 @@ import {
   ListTodo,
   Sun,
 } from "lucide-react";
-import { getOpenTasks, getCompletedSince } from "@/lib/db/tasks";
+import { getAllBoardTasks, getOpenTasks, getCompletedSince } from "@/lib/db/tasks";
 import type { Priority, TaskWithProject } from "@/types/db";
 import { isSupabaseConfigured } from "@/lib/config";
 import {
@@ -32,6 +32,7 @@ import {
   type DaySlot,
   type ProjectSlot,
 } from "@/components/inicio/dashboard";
+import { TaskListDialogButton } from "@/components/inicio/task-list-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -57,11 +58,13 @@ export default async function InicioPage() {
 
   let openTasks: TaskWithProject[] = [];
   let completed: TaskWithProject[] = [];
+  let allBoardTasks: TaskWithProject[] = [];
   let failed = false;
   try {
-    [openTasks, completed] = await Promise.all([
+    [openTasks, completed, allBoardTasks] = await Promise.all([
       getOpenTasks(), // todo + en_progreso, nivel superior, con proyecto
       getCompletedSince(weekStart.toISOString()),
+      getAllBoardTasks(),
     ]);
   } catch {
     failed = true;
@@ -98,6 +101,9 @@ export default async function InicioPage() {
   }
 
   const completedWeek = completed.length;
+  const completedTasks = allBoardTasks
+    .filter((task) => task.status === "hecho")
+    .sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""));
   const dayOf = (iso: string | null) =>
     iso ? toDateColumn(parseISO(iso)) : "";
   const completedToday = completed.filter(
@@ -115,9 +121,9 @@ export default async function InicioPage() {
     };
   });
 
-  // --- Trabajo abierto por proyecto (incluye "Sin proyecto") ---
+  // --- Avance por proyecto (incluye "Sin proyecto") ---
   const projMap = new Map<string, ProjectSlot>();
-  for (const t of openTasks) {
+  for (const t of allBoardTasks) {
     const id = t.project?.id ?? "__none__";
     const cur =
       projMap.get(id) ??
@@ -125,13 +131,22 @@ export default async function InicioPage() {
         id,
         name: t.project?.name ?? "Sin proyecto",
         icon: t.project?.icon ?? null,
-        count: 0,
+        color: t.project?.color ?? null,
+        total: 0,
+        open: 0,
+        done: 0,
+        overdue: 0,
       } as ProjectSlot);
-    cur.count += 1;
+    cur.total += 1;
+    if (t.status === "hecho") cur.done += 1;
+    else {
+      cur.open += 1;
+      if (estaVencida(t.due_at)) cur.overdue += 1;
+    }
     projMap.set(id, cur);
   }
   const projectRows = [...projMap.values()]
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => b.open - a.open || b.overdue - a.overdue)
     .slice(0, 6);
 
   // --- Saludo ---
@@ -148,7 +163,7 @@ export default async function InicioPage() {
         : "Todo al dia. No tienes pendientes abiertos.";
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <header className="space-y-1">
         <h1 className="font-heading text-2xl font-semibold tracking-tight">
           {saludo}
@@ -167,32 +182,40 @@ export default async function InicioPage() {
           value={pendientes}
           icon={ListTodo}
           hint={`${enProgreso} en progreso`}
-        />
+        >
+          <TaskListDialogButton title="Tareas pendientes" tasks={openTasks} />
+        </StatCard>
         <StatCard
           label="Vencidas"
           value={overdue.length}
           icon={AlertTriangle}
           tone={overdue.length ? "danger" : "neutral"}
           hint={overdue.length ? "requieren atencion" : "nada vencido"}
-        />
+        >
+          <TaskListDialogButton title="Tareas vencidas" tasks={overdue} />
+        </StatCard>
         <StatCard
           label="Para hoy"
           value={today.length}
           icon={Sun}
           tone={today.length ? "accent" : "neutral"}
           hint={today.length ? "vencen hoy" : "sin entregas hoy"}
-        />
+        >
+          <TaskListDialogButton title="Tareas para hoy" tasks={today} />
+        </StatCard>
         <StatCard
           label="Hechas · 7 dias"
           value={completedWeek}
           icon={CheckCircle2}
           tone={completedWeek ? "positive" : "neutral"}
           hint={`${completedToday} hoy`}
-        />
+        >
+          <TaskListDialogButton title="Tareas finalizadas" tasks={completedTasks} />
+        </StatCard>
       </div>
 
       {/* Contenido principal + panel de widgets */}
-      <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(26rem,1.1fr)]">
         <div className="flex flex-col gap-6">
           <FocusSection
             title="Vencido"

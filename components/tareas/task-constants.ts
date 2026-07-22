@@ -6,7 +6,7 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   inbox: "Bandeja",
   todo: "Por hacer",
   en_progreso: "En progreso",
-  hecho: "Hecho",
+  hecho: "Finalizadas",
 };
 
 /** Estados del tablero (sin bandeja). Orden de columnas del Kanban. */

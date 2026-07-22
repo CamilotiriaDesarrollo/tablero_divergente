@@ -1,7 +1,7 @@
 "use client";
 // Vista por tiempo (BLUEPRINT seccion 4/6): columnas Vencido / Hoy / 1-14 /
 // 15-30 / 30+ / Sin fecha, agrupadas por due_at con timeBucket. Tarjetas
-// compactas. Es lectura por proximidad; no reordena nada por su cuenta.
+// compactas. Solo muestra trabajo pendiente para mantener esta vista operativa.
 import { useMemo } from "react";
 import type { Task, TaskWithProject } from "@/types/db";
 import {
@@ -29,7 +29,9 @@ export function TimeBucketsBoard({
       dias_30_mas: [],
       sin_fecha: [],
     };
-    for (const t of tasks) map[timeBucket(t.due_at)].push(t);
+    for (const t of tasks) {
+      if (t.status !== "hecho") map[timeBucket(t.due_at)].push(t);
+    }
     return map;
   }, [tasks]);
 

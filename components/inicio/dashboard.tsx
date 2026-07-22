@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { diasRestantesLabel } from "@/lib/utils/dates";
 import { PRIORITY_EMOJI, PRIORITY_LABEL } from "@/lib/utils/urgency";
 import type { Priority, TaskWithProject } from "@/types/db";
+import { TaskListPanel } from "@/components/inicio/task-list-panel";
+import { projectColorValue } from "@/components/proyectos/project-colors";
 
 // ---------- Tarjeta de indicador (KPI) ----------
 
@@ -176,11 +178,14 @@ export interface ProjectSlot {
   id: string;
   name: string;
   icon: string | null;
-  count: number;
+  color: string | null;
+  total: number;
+  open: number;
+  done: number;
+  overdue: number;
 }
 
 export function ProjectBreakdown({ rows }: { rows: ProjectSlot[] }) {
-  const max = Math.max(1, ...rows.map((r) => r.count));
   return (
     <div className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <div className="flex items-baseline justify-between">
@@ -197,23 +202,40 @@ export function ProjectBreakdown({ rows }: { rows: ProjectSlot[] }) {
           No hay tareas abiertas en tus proyectos.
         </p>
       ) : (
-        <ul className="flex flex-col gap-2.5">
+        <ul className="flex flex-col gap-2">
           {rows.map((r) => (
-            <li key={r.id} className="flex flex-col gap-1">
+            <li
+              key={r.id}
+              className="border-l-2 px-3 py-2"
+              style={{
+                borderColor: projectColorValue(r.color),
+                backgroundColor: `${projectColorValue(r.color)}14`,
+              }}
+            >
               <div className="flex items-center justify-between gap-2 text-sm">
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span aria-hidden>{r.icon ?? "•"}</span>
                   <span className="truncate">{r.name}</span>
                 </span>
                 <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                  {r.count}
+                  {Math.round((r.done / Math.max(1, r.total)) * 100)}%
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                 <div
-                  className="h-full rounded-full bg-foreground/25"
-                  style={{ width: `${(r.count / max) * 100}%` }}
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${(r.done / Math.max(1, r.total)) * 100}%`,
+                    backgroundColor: projectColorValue(r.color),
+                  }}
                 />
+              </div>
+              <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
+                <span>{r.open} pendientes</span>
+                <span>{r.done} finalizadas</span>
+                {r.overdue > 0 ? (
+                  <span className="text-priority-alta">{r.overdue} vencidas</span>
+                ) : null}
               </div>
             </li>
           ))}
@@ -225,7 +247,7 @@ export function ProjectBreakdown({ rows }: { rows: ProjectSlot[] }) {
 
 // ---------- Listas de foco (Vencido / Hoy / Proximo) ----------
 
-function FocusRow({ task }: { task: TaskWithProject }) {
+export function FocusRow({ task }: { task: TaskWithProject }) {
   return (
     <Link
       href="/tareas"
@@ -267,8 +289,6 @@ export function FocusSection({
   emptyLabel: string;
   limit?: number;
 }) {
-  const shown = tasks.slice(0, limit);
-  const rest = tasks.length - shown.length;
   return (
     <section className="flex flex-col gap-2">
       <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight">
@@ -286,25 +306,7 @@ export function FocusSection({
           {tasks.length}
         </span>
       </h2>
-      {tasks.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
-          {emptyLabel}
-        </p>
-      ) : (
-        <div className="flex flex-col rounded-lg bg-card p-1 ring-1 ring-foreground/10">
-          {shown.map((t) => (
-            <FocusRow key={t.id} task={t} />
-          ))}
-          {rest > 0 ? (
-            <Link
-              href="/tareas"
-              className="px-2 py-1.5 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-            >
-              y {rest} mas en Tareas
-            </Link>
-          ) : null}
-        </div>
-      )}
+      <TaskListPanel title={title} tasks={tasks} emptyLabel={emptyLabel} limit={limit} />
     </section>
   );
 }

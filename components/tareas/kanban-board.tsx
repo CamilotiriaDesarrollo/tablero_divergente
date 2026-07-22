@@ -27,6 +27,7 @@ import { markLocalMutation } from "@/lib/realtime/echo-guard";
 import { KanbanColumn } from "@/components/tareas/kanban-column";
 import { PriorityBadge } from "@/components/tareas/priority-badge";
 import { BOARD_STATUSES } from "@/components/tareas/task-constants";
+import { byUrgencyDesc } from "@/lib/utils/urgency";
 
 type Columns = Record<TaskStatus, TaskWithProject[]>;
 
@@ -34,6 +35,15 @@ function groupByStatus(tasks: TaskWithProject[]): Columns {
   const cols: Columns = { inbox: [], todo: [], en_progreso: [], hecho: [] };
   for (const t of tasks) {
     if (t.status in cols) cols[t.status].push(t);
+  }
+  for (const status of BOARD_STATUSES) {
+    cols[status].sort((a, b) => {
+      const urgency = byUrgencyDesc(a, b);
+      if (urgency !== 0) return urgency;
+      if (!a.due_at) return b.due_at ? 1 : 0;
+      if (!b.due_at) return -1;
+      return a.due_at.localeCompare(b.due_at);
+    });
   }
   return cols;
 }
