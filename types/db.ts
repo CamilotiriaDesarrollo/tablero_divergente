@@ -36,6 +36,25 @@ export const PRIORITIES: Priority[] = ["alta", "media", "baja"];
 // Una idea de contenido nace como 'idea', pasa a 'en_proceso' y termina
 // 'publicado'. No hay reordenamiento automatico: el estado es senal, no decision.
 export type MarketingContentStatus = "idea" | "en_proceso" | "publicado";
+// Bloques de la ficha completa de un avatar (buyer persona extenso, transcrito
+// 1:1 desde el documento fuente). "grid" = 2-3 columnas lado a lado con su
+// propio encabezado cada una (se apilan en pantallas angostas).
+export type PersonaBlock =
+  | { type: "text"; label?: string; body: string }
+  | { type: "quote"; label?: string; body: string }
+  | { type: "list"; label?: string; body?: string; items: string[] }
+  | { type: "table"; label?: string; headers: string[]; rows: string[][] }
+  | {
+      type: "grid";
+      label?: string;
+      columns: { label: string; body?: string; items?: string[] }[];
+    };
+
+export interface PersonaSection {
+  title: string;
+  blocks: PersonaBlock[];
+}
+
 export const MARKETING_CONTENT_STATUSES: MarketingContentStatus[] = [
   "idea",
   "en_proceso",
@@ -309,6 +328,7 @@ export interface Database {
           color: string | null;
           icon: string | null;
           photo_url: string | null;
+          persona_sections: PersonaSection[] | null;
           position: number;
           created_at: string;
           updated_at: string;
@@ -323,6 +343,7 @@ export interface Database {
           color?: string | null;
           icon?: string | null;
           photo_url?: string | null;
+          persona_sections?: PersonaSection[] | null;
           position?: number;
           created_at?: string;
           updated_at?: string;
@@ -337,6 +358,7 @@ export interface Database {
           color?: string | null;
           icon?: string | null;
           photo_url?: string | null;
+          persona_sections?: PersonaSection[] | null;
           position?: number;
           created_at?: string;
           updated_at?: string;

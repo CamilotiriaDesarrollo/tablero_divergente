@@ -57,68 +57,61 @@ export function AvatarProfileCard({ avatar }: { avatar: MarketingAvatar }) {
     <>
       <section
         aria-label={`Perfil de ${avatar.name}`}
-        className="overflow-hidden rounded-xl border-t-4 bg-card ring-1 ring-foreground/10"
+        className="rounded-xl border-t-4 bg-card p-4 ring-1 ring-foreground/10"
         style={{ borderTopColor: accent }}
       >
-        <div className="flex flex-col sm:flex-row">
-          <div className="relative h-52 w-full shrink-0 bg-muted sm:h-auto sm:w-44 md:w-56">
+        <div className="flex items-start gap-3">
+          <div
+            className="relative size-14 shrink-0 overflow-hidden rounded-lg"
+            style={{ backgroundColor: `${accent}14` }}
+          >
             {avatar.photo_url ? (
               <Image
                 src={avatar.photo_url}
                 alt={avatar.name}
                 fill
-                sizes="(max-width: 640px) 100vw, 224px"
-                className="object-cover object-top"
+                sizes="56px"
+                className="object-contain"
               />
             ) : (
-              <div
-                className="flex size-full items-center justify-center"
-                style={{ backgroundColor: `${accent}1a` }}
-              >
-                <User className="size-10" style={{ color: accent }} />
+              <div className="flex size-full items-center justify-center">
+                <User className="size-6" style={{ color: accent }} />
               </div>
             )}
           </div>
-
-          <div className="flex flex-1 flex-col gap-3 p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="font-heading text-xl font-semibold leading-snug">
-                  {avatar.name}
-                </h2>
-                {avatar.headline?.trim() ? (
-                  <p className="text-sm text-muted-foreground">
-                    {avatar.headline}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Sin titular todavia. Describe en una linea quien es.
-                  </p>
-                )}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setOpen(true)}
-                className="shrink-0"
-              >
-                <Pencil />
-                Editar perfil
-              </Button>
-            </div>
-            {avatar.description?.trim() ? (
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                {avatar.description}
-              </p>
+          <div className="min-w-0 flex-1">
+            <h2 className="font-heading text-base font-semibold leading-snug">
+              {avatar.name}
+            </h2>
+            {avatar.headline?.trim() ? (
+              <p className="text-xs text-muted-foreground">{avatar.headline}</p>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Aqui va la descripcion del avatar: contexto, dolores, deseos y
-                como le habla la marca. Editala cuando tengas la definicion.
+              <p className="text-xs text-muted-foreground">
+                Sin titular todavia.
               </p>
             )}
           </div>
         </div>
+        {avatar.description?.trim() ? (
+          <p className="mt-3 line-clamp-6 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+            {avatar.description}
+          </p>
+        ) : (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Aqui va la descripcion del avatar: contexto, dolores, deseos y
+            como le habla la marca.
+          </p>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setOpen(true)}
+          className="mt-3 w-full"
+        >
+          <Pencil />
+          Editar perfil
+        </Button>
       </section>
 
       <Dialog open={open} onOpenChange={setOpen}>
