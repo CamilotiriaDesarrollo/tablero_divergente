@@ -32,7 +32,8 @@ import {
 } from "@/components/tareas/task-constants";
 
 type Columns = Record<TaskStatus, TaskWithProject[]>;
-const DOING_TASK_STORAGE_KEY = "tablero-divergente:doing-task";
+const DOING_TASK_STORAGE_KEY = "tablero-divergente:doing-tasks";
+const LEGACY_DOING_TASK_STORAGE_KEY = "tablero-divergente:doing-task";
 const TODO_SORT_STORAGE_KEY = "tablero-divergente:todo-orden";
 
 function groupByStatus(tasks: TaskWithProject[]): Columns {
@@ -77,7 +78,8 @@ export function KanbanBoard({
   const router = useRouter();
   const [columns, setColumns] = useState<Columns>(() => groupByStatus(tasks));
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
-  const [doingTaskId, setDoingTaskId] = useState<string | null>(null);
+  const [doingTaskIds, setDoingTaskIds] = useState<string[]>([]);
+  const [doingTasksLoaded, setDoingTasksLoaded] = useState(false);
   const [todoSort, setTodoSort] = useState<TodoSortMode>("manual");
   const startContainerRef = useRef<TaskStatus | null>(null);
   const draggingRef = useRef(false);
@@ -89,21 +91,35 @@ export function KanbanBoard({
   }, [tasks]);
 
   useEffect(() => {
-    setDoingTaskId(window.localStorage.getItem(DOING_TASK_STORAGE_KEY));
+    const stored = window.localStorage.getItem(DOING_TASK_STORAGE_KEY);
+    const legacyTaskId = window.localStorage.getItem(LEGACY_DOING_TASK_STORAGE_KEY);
+    try {
+      const parsed = stored ? JSON.parse(stored) : legacyTaskId ? [legacyTaskId] : [];
+      setDoingTaskIds(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : []);
+    } catch {
+      setDoingTaskIds(legacyTaskId ? [legacyTaskId] : []);
+    }
+    setDoingTasksLoaded(true);
     const savedSort = window.localStorage.getItem(TODO_SORT_STORAGE_KEY);
     if (savedSort === "manual" || savedSort === "fecha") setTodoSort(savedSort);
   }, []);
 
   useEffect(() => {
-    if (!doingTaskId) return;
-    const activeTask = tasks.find((task) => task.id === doingTaskId);
-    if (activeTask?.status === "en_progreso") {
-      window.localStorage.setItem(DOING_TASK_STORAGE_KEY, doingTaskId);
+    if (!doingTasksLoaded) return;
+    const validTaskIds = doingTaskIds.filter((id) =>
+      tasks.some((task) => task.id === id && task.status === "en_progreso"),
+    );
+    if (validTaskIds.length !== doingTaskIds.length) {
+      setDoingTaskIds(validTaskIds);
       return;
     }
-    window.localStorage.removeItem(DOING_TASK_STORAGE_KEY);
-    setDoingTaskId(null);
-  }, [doingTaskId, tasks]);
+    if (validTaskIds.length) {
+      window.localStorage.setItem(DOING_TASK_STORAGE_KEY, JSON.stringify(validTaskIds));
+      window.localStorage.removeItem(LEGACY_DOING_TASK_STORAGE_KEY);
+    } else {
+      window.localStorage.removeItem(DOING_TASK_STORAGE_KEY);
+    }
+  }, [doingTaskIds, doingTasksLoaded, tasks]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -236,12 +252,11 @@ export function KanbanBoard({
   }
 
   function toggleDoing(taskId: string) {
-    setDoingTaskId((current) => {
-      const next = current === taskId ? null : taskId;
-      if (next) window.localStorage.setItem(DOING_TASK_STORAGE_KEY, next);
-      else window.localStorage.removeItem(DOING_TASK_STORAGE_KEY);
-      return next;
-    });
+    setDoingTaskIds((current) =>
+      current.includes(taskId)
+        ? current.filter((id) => id !== taskId)
+        : [...current, taskId],
+    );
   }
 
   function changeTodoSort(next: TodoSortMode) {
@@ -272,7 +287,7 @@ export function KanbanBoard({
                 : columns[status]
             }
             onEdit={onEdit}
-            doingTaskId={doingTaskId}
+            doingTaskIds={doingTaskIds}
             onToggleDoing={toggleDoing}
             sortMode={status === "todo" ? todoSort : undefined}
             onSortModeChange={status === "todo" ? changeTodoSort : undefined}

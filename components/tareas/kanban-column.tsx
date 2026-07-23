@@ -28,7 +28,7 @@ export function KanbanColumn({
   status,
   tasks,
   onEdit,
-  doingTaskId,
+  doingTaskIds,
   onToggleDoing,
   sortMode,
   onSortModeChange,
@@ -36,7 +36,7 @@ export function KanbanColumn({
   status: TaskStatus;
   tasks: TaskWithProject[];
   onEdit: (task: Task) => void;
-  doingTaskId: string | null;
+  doingTaskIds: string[];
   onToggleDoing: (taskId: string) => void;
   /** Presente solo en "Por hacer": activa el selector Manual / Por fecha. */
   sortMode?: TodoSortMode;
@@ -97,7 +97,7 @@ export function KanbanColumn({
               key={task.id}
               task={task}
               onEdit={onEdit}
-              isDoing={task.id === doingTaskId}
+              isDoing={doingTaskIds.includes(task.id)}
               onToggleDoing={onToggleDoing}
             />
           ))}
