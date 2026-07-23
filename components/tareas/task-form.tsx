@@ -59,11 +59,8 @@ interface TaskFormProps {
   /** Estado inicial al crear (por defecto 'todo'). */
   defaultStatus?: TaskStatus;
   defaultProjectId?: string | null;
-  /**
-   * Cuando se abre dentro de un proyecto: fija el proyecto (oculta su selector)
-   * y muestra el selector de fase con estas opciones.
-   */
-  lockedProjectId?: string | null;
+  /** Proyecto al que pertenecen las fases entregadas al formulario. */
+  phaseProjectId?: string | null;
   phases?: PhaseOption[];
   /** Fase preseleccionada al crear (ej. se agrego desde una fase concreta). */
   defaultPhaseId?: string | null;
@@ -76,13 +73,12 @@ export function TaskForm({
   task,
   defaultStatus = "todo",
   defaultProjectId = null,
-  lockedProjectId = null,
+  phaseProjectId = null,
   phases,
   defaultPhaseId = null,
 }: TaskFormProps) {
   const { run, pending } = useRunAction();
   const editing = Boolean(task);
-  const locked = Boolean(lockedProjectId);
 
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -100,9 +96,7 @@ export function TaskForm({
     if (!open) return;
     setTitle(task?.title ?? "");
     setNotes(task?.notes ?? "");
-    setProjectId(
-      lockedProjectId ?? task?.project_id ?? defaultProjectId ?? NONE_VALUE,
-    );
+    setProjectId(task?.project_id ?? defaultProjectId ?? NONE_VALUE);
     setPhaseId(task?.phase_id ?? defaultPhaseId ?? NONE_VALUE);
     setPriority(task ? (task.priority ?? NONE_VALUE) : "media");
     setReceivedAt(task ? (task.received_at ?? "") : toDateColumn(new Date()));
@@ -110,7 +104,9 @@ export function TaskForm({
     setCategory(task?.category ?? NONE_VALUE);
     setResourceUrl(task?.resource_url ?? "");
     setIsDaily(task?.is_daily ?? false);
-  }, [open, task, defaultProjectId, defaultPhaseId, lockedProjectId]);
+  }, [open, task, defaultProjectId, defaultPhaseId]);
+
+  const phaseVisible = Boolean(phaseProjectId && projectId === phaseProjectId);
 
   function handleSubmit() {
     const cleanTitle = title.trim();
@@ -122,14 +118,10 @@ export function TaskForm({
     const payload = {
       title: cleanTitle,
       notes: notes.trim() || null,
-      project_id: locked
-        ? lockedProjectId
-        : projectId === NONE_VALUE
-          ? null
-          : projectId,
-      // Solo enviamos phase_id dentro del contexto de un proyecto (fases activas).
-      ...(locked
-        ? { phase_id: phaseId === NONE_VALUE ? null : phaseId }
+      project_id: projectId === NONE_VALUE ? null : projectId,
+      // Si se cambia de proyecto desde su detalle, la fase anterior ya no aplica.
+      ...(phaseProjectId
+        ? { phase_id: phaseVisible && phaseId !== NONE_VALUE ? phaseId : null }
         : {}),
       priority: (priority === NONE_VALUE ? null : priority) as Priority | null,
       received_at: receivedAt || null,
@@ -189,7 +181,40 @@ export function TaskForm({
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {locked ? (
+            <div className="flex flex-col gap-1.5">
+              <Label>Proyecto</Label>
+              <Select
+                value={projectId}
+                onValueChange={(value) => {
+                  const nextProjectId = value as string;
+                  setProjectId(nextProjectId);
+                  if (nextProjectId !== phaseProjectId) setPhaseId(NONE_VALUE);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(value: string) => {
+                      if (!value || value === NONE_VALUE) return "Sin proyecto";
+                      const project = projects.find((item) => item.id === value);
+                      return project
+                        ? `${project.icon ? `${project.icon} ` : ""}${project.name}`
+                        : "Sin proyecto";
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_VALUE}>Sin proyecto</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.icon ? `${project.icon} ` : ""}
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {phaseVisible ? (
               <div className="flex flex-col gap-1.5">
                 <Label>Fase o modulo</Label>
                 <Select value={phaseId} onValueChange={(v) => setPhaseId(v as string)}>
@@ -212,36 +237,7 @@ export function TaskForm({
                   </SelectContent>
                 </Select>
               </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                <Label>Proyecto</Label>
-                <Select
-                  value={projectId}
-                  onValueChange={(v) => setProjectId(v as string)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue>
-                      {(v: string) => {
-                        if (!v || v === NONE_VALUE) return "Sin proyecto";
-                        const p = projects.find((x) => x.id === v);
-                        return p
-                          ? `${p.icon ? `${p.icon} ` : ""}${p.name}`
-                          : "Sin proyecto";
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NONE_VALUE}>Sin proyecto</SelectItem>
-                    {projects.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.icon ? `${p.icon} ` : ""}
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            ) : null}
 
             <div className="flex flex-col gap-1.5">
               <Label>Prioridad</Label>

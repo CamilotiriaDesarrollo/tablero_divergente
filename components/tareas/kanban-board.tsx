@@ -27,9 +27,9 @@ import { markLocalMutation } from "@/lib/realtime/echo-guard";
 import { KanbanColumn } from "@/components/tareas/kanban-column";
 import { PriorityBadge } from "@/components/tareas/priority-badge";
 import { BOARD_STATUSES } from "@/components/tareas/task-constants";
-import { byUrgencyDesc } from "@/lib/utils/urgency";
 
 type Columns = Record<TaskStatus, TaskWithProject[]>;
+const DOING_TASK_STORAGE_KEY = "tablero-divergente:doing-task";
 
 function groupByStatus(tasks: TaskWithProject[]): Columns {
   const cols: Columns = { inbox: [], todo: [], en_progreso: [], hecho: [] };
@@ -37,13 +37,8 @@ function groupByStatus(tasks: TaskWithProject[]): Columns {
     if (t.status in cols) cols[t.status].push(t);
   }
   for (const status of BOARD_STATUSES) {
-    cols[status].sort((a, b) => {
-      const urgency = byUrgencyDesc(a, b);
-      if (urgency !== 0) return urgency;
-      if (!a.due_at) return b.due_at ? 1 : 0;
-      if (!b.due_at) return -1;
-      return a.due_at.localeCompare(b.due_at);
-    });
+    // El tablero Proceso respeta el orden que la persona arma al arrastrar.
+    cols[status].sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at));
   }
   return cols;
 }
@@ -62,6 +57,7 @@ export function KanbanBoard({
   const router = useRouter();
   const [columns, setColumns] = useState<Columns>(() => groupByStatus(tasks));
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  const [doingTaskId, setDoingTaskId] = useState<string | null>(null);
   const startContainerRef = useRef<TaskStatus | null>(null);
   const draggingRef = useRef(false);
 
@@ -70,6 +66,21 @@ export function KanbanBoard({
     if (draggingRef.current) return;
     setColumns(groupByStatus(tasks));
   }, [tasks]);
+
+  useEffect(() => {
+    setDoingTaskId(window.localStorage.getItem(DOING_TASK_STORAGE_KEY));
+  }, []);
+
+  useEffect(() => {
+    if (!doingTaskId) return;
+    const activeTask = tasks.find((task) => task.id === doingTaskId);
+    if (activeTask?.status === "en_progreso") {
+      window.localStorage.setItem(DOING_TASK_STORAGE_KEY, doingTaskId);
+      return;
+    }
+    window.localStorage.removeItem(DOING_TASK_STORAGE_KEY);
+    setDoingTaskId(null);
+  }, [doingTaskId, tasks]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -188,6 +199,15 @@ export function KanbanBoard({
     }
   }
 
+  function toggleDoing(taskId: string) {
+    setDoingTaskId((current) => {
+      const next = current === taskId ? null : taskId;
+      if (next) window.localStorage.setItem(DOING_TASK_STORAGE_KEY, next);
+      else window.localStorage.removeItem(DOING_TASK_STORAGE_KEY);
+      return next;
+    });
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -207,6 +227,8 @@ export function KanbanBoard({
             status={status}
             tasks={columns[status]}
             onEdit={onEdit}
+            doingTaskId={doingTaskId}
+            onToggleDoing={toggleDoing}
           />
         ))}
       </div>

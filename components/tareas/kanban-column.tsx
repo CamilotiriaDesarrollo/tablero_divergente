@@ -15,10 +15,14 @@ export function KanbanColumn({
   status,
   tasks,
   onEdit,
+  doingTaskId,
+  onToggleDoing,
 }: {
   status: TaskStatus;
   tasks: TaskWithProject[];
   onEdit: (task: Task) => void;
+  doingTaskId: string | null;
+  onToggleDoing: (taskId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
@@ -42,7 +46,13 @@ export function KanbanColumn({
           strategy={verticalListSortingStrategy}
         >
           {tasks.map((task) => (
-            <KanbanCard key={task.id} task={task} onEdit={onEdit} />
+            <KanbanCard
+              key={task.id}
+              task={task}
+              onEdit={onEdit}
+              isDoing={task.id === doingTaskId}
+              onToggleDoing={onToggleDoing}
+            />
           ))}
         </SortableContext>
         {tasks.length === 0 && (

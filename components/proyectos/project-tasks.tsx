@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import {
   CheckCircle2,
   Circle,
+  Archive,
   ListPlus,
   Plus,
   Layers,
@@ -49,6 +50,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TaskForm } from "@/components/tareas/task-form";
+import { TaskActionsMenu } from "@/components/tareas/task-actions-menu";
 import {
   completeTaskAction,
   reopenTaskAction,
@@ -98,13 +100,22 @@ export function ProjectTasks({
     [phases],
   );
 
-  // Agrupa las tareas por fase.
-  const noPhase = tasks.filter((t) => !t.phase_id);
-  const byPhase = new Map<string, TaskWithProject[]>();
-  for (const p of phases) byPhase.set(p.id, []);
-  for (const t of tasks) {
-    if (t.phase_id && byPhase.has(t.phase_id)) byPhase.get(t.phase_id)!.push(t);
-  }
+  const activeTasks = tasks.filter((task) => task.status !== "hecho");
+  const completedTasks = tasks.filter((task) => task.status === "hecho");
+  const groupByPhase = (source: TaskWithProject[]) => {
+    const byPhase = new Map<string, TaskWithProject[]>();
+    for (const phase of phases) byPhase.set(phase.id, []);
+    for (const task of source) {
+      if (task.phase_id && byPhase.has(task.phase_id)) {
+        byPhase.get(task.phase_id)!.push(task);
+      }
+    }
+    return byPhase;
+  };
+  const activeByPhase = groupByPhase(activeTasks);
+  const completedByPhase = groupByPhase(completedTasks);
+  const activeNoPhase = activeTasks.filter((task) => !task.phase_id);
+  const completedNoPhase = completedTasks.filter((task) => !task.phase_id);
 
   function openNewTask(phaseId: string | null) {
     setEditingTask(null);
@@ -179,7 +190,7 @@ export function ProjectTasks({
               phase={phase}
               index={index}
               total={phases.length}
-              tasks={byPhase.get(phase.id) ?? []}
+              tasks={activeByPhase.get(phase.id) ?? []}
               onAddTask={() => openNewTask(phase.id)}
               onOpenTask={openTask}
               onRename={() => setPhaseDialog({ mode: "rename", phase })}
@@ -189,13 +200,13 @@ export function ProjectTasks({
           ))}
 
           {/* Tareas sin fase. Con fases: seccion aparte solo si hay. Sin fases: lista plana. */}
-          {(!hasPhases || noPhase.length > 0) && (
+          {(!hasPhases || activeNoPhase.length > 0) && (
             <div className="space-y-2">
               {hasPhases && (
                 <div className="flex items-center justify-between gap-3 px-1">
                   <h3 className="text-sm font-medium text-muted-foreground">
                     Sin fase{" "}
-                    <span className="font-mono text-xs">{noPhase.length}</span>
+                    <span className="font-mono text-xs">{activeNoPhase.length}</span>
                   </h3>
                   <Button
                     size="sm"
@@ -208,9 +219,19 @@ export function ProjectTasks({
                   </Button>
                 </div>
               )}
-              <TaskList tasks={noPhase} onOpenTask={openTask} />
+              <TaskList tasks={activeNoPhase} onOpenTask={openTask} />
             </div>
           )}
+
+          {completedTasks.length > 0 ? (
+            <ArchivedTasks
+              phases={phases}
+              byPhase={completedByPhase}
+              noPhase={completedNoPhase}
+              total={completedTasks.length}
+              onOpenTask={openTask}
+            />
+          ) : null}
         </div>
       )}
 
@@ -223,7 +244,8 @@ export function ProjectTasks({
         }}
         projects={projects}
         task={editingTask}
-        lockedProjectId={projectId}
+        defaultProjectId={projectId}
+        phaseProjectId={projectId}
         phases={phaseOptions}
         defaultPhaseId={createPhaseId}
         defaultStatus="todo"
@@ -242,6 +264,64 @@ export function ProjectTasks({
         onClose={() => setPhaseToDelete(null)}
       />
     </section>
+  );
+}
+
+function ArchivedTasks({
+  phases,
+  byPhase,
+  noPhase,
+  total,
+  onOpenTask,
+}: {
+  phases: Phase[];
+  byPhase: Map<string, TaskWithProject[]>;
+  noPhase: TaskWithProject[];
+  total: number;
+  onOpenTask: (task: TaskWithProject) => void;
+}) {
+  const phasesWithCompletedTasks = phases.filter(
+    (phase) => (byPhase.get(phase.id)?.length ?? 0) > 0,
+  );
+
+  return (
+    <details className="group rounded-xl border border-border bg-card/40">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring">
+        <span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Archive className="size-4" aria-hidden />
+          Finalizadas
+          <span className="font-mono text-xs font-normal">{total}</span>
+        </span>
+        <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+
+      <div className="space-y-5 border-t border-border px-3 py-4">
+        {phasesWithCompletedTasks.map((phase) => {
+          const phaseTasks = byPhase.get(phase.id) ?? [];
+          return (
+            <div key={phase.id} className="space-y-2">
+              <h3 className="flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground">
+                <Layers className="size-4 shrink-0" aria-hidden />
+                <span className="truncate">{phase.name}</span>
+                <span className="font-mono text-xs font-normal">{phaseTasks.length}</span>
+              </h3>
+              <TaskList tasks={phaseTasks} onOpenTask={onOpenTask} />
+            </div>
+          );
+        })}
+
+        {noPhase.length > 0 ? (
+          <div className="space-y-2">
+            {phases.length > 0 ? (
+              <h3 className="px-1 text-sm font-medium text-muted-foreground">
+                Sin fase <span className="font-mono text-xs font-normal">{noPhase.length}</span>
+              </h3>
+            ) : null}
+            <TaskList tasks={noPhase} onOpenTask={onOpenTask} />
+          </div>
+        ) : null}
+      </div>
+    </details>
   );
 }
 
@@ -462,6 +542,8 @@ function TaskRow({
       >
         {diasRestantesLabel(task.due_at)}
       </span>
+
+      <TaskActionsMenu task={task} onEdit={() => onOpen()} />
     </li>
   );
 }

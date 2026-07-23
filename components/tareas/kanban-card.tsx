@@ -3,7 +3,7 @@
 // el asa conserva soporte de teclado y hace visible la accion.
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { CirclePlay, GripVertical, PauseCircle } from "lucide-react";
 import type { Task, TaskWithProject } from "@/types/db";
 import {
   completeTaskAction,
@@ -21,9 +21,13 @@ import { projectColorValue } from "@/components/proyectos/project-colors";
 export function KanbanCard({
   task,
   onEdit,
+  isDoing,
+  onToggleDoing,
 }: {
   task: TaskWithProject;
   onEdit: (task: Task) => void;
+  isDoing: boolean;
+  onToggleDoing: (taskId: string) => void;
 }) {
   const { run } = useRunAction();
   const {
@@ -44,6 +48,7 @@ export function KanbanCard({
       className={cn(
         "flex cursor-grab flex-col gap-2 rounded-lg border border-border bg-card p-2.5 shadow-xs active:cursor-grabbing",
         isDragging && "opacity-40",
+        isDoing && "border-emerald-500/80 bg-emerald-500/10 ring-1 ring-emerald-500/35",
       )}
       onPointerDown={(event) => {
         // Los controles internos conservan su propio clic y el asa su arrastre.
@@ -113,6 +118,26 @@ export function KanbanCard({
         </span>
         <UrgencyMeter priority={task.priority} dueAt={task.due_at} done={done} />
       </div>
+
+      {task.status === "en_progreso" ? (
+        <div className="flex justify-end pl-6">
+          <button
+            type="button"
+            onClick={() => onToggleDoing(task.id)}
+            className={cn(
+              "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+              isDoing
+                ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                : "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400",
+            )}
+            aria-pressed={isDoing}
+            title={isDoing ? "Dejar de hacer esta tarea" : "Marcar como haciendo"}
+          >
+            {isDoing ? <PauseCircle className="size-3.5" /> : <CirclePlay className="size-3.5" />}
+            {isDoing ? "Haciendo" : "Hacer ahora"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
