@@ -308,6 +308,7 @@ export interface Database {
           description: string | null;
           color: string | null;
           icon: string | null;
+          photo_url: string | null;
           position: number;
           created_at: string;
           updated_at: string;
@@ -321,6 +322,7 @@ export interface Database {
           description?: string | null;
           color?: string | null;
           icon?: string | null;
+          photo_url?: string | null;
           position?: number;
           created_at?: string;
           updated_at?: string;
@@ -334,6 +336,7 @@ export interface Database {
           description?: string | null;
           color?: string | null;
           icon?: string | null;
+          photo_url?: string | null;
           position?: number;
           created_at?: string;
           updated_at?: string;

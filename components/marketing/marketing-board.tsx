@@ -5,7 +5,7 @@
 // contenido y la lista de ideas. Los datos llegan del Server Component por props.
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AvatarProfileCard } from "@/components/marketing/avatar-profile-card";
@@ -43,6 +43,9 @@ export function MarketingBoard({
             return (
               <TabsTrigger key={avatar.id} value={avatar.id}>
                 <Avatar size="sm">
+                  {avatar.photo_url ? (
+                    <AvatarImage src={avatar.photo_url} alt={avatar.name} />
+                  ) : null}
                   <AvatarFallback
                     className="text-[10px] font-semibold"
                     style={{ backgroundColor: `${accent}22`, color: accent }}
