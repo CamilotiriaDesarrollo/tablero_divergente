@@ -1,8 +1,9 @@
 "use client";
 // components/shared/realtime-refresher.tsx
 // Sincronizacion en vivo entre dispositivos (Supabase Realtime). Al detectar
-// cambios en tasks o projects del usuario, refresca los Server Components.
-// Silencioso: no muestra UI. Filtra por user_id para no reaccionar a ruido.
+// cambios en tasks, projects o las tablas de marketing del usuario, refresca
+// los Server Components. Silencioso: no muestra UI. Filtra por user_id para no
+// reaccionar a ruido.
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -44,6 +45,26 @@ export function RealtimeRefresher({ userId }: { userId: string }) {
           event: "*",
           schema: "public",
           table: "projects",
+          filter: `user_id=eq.${userId}`,
+        },
+        scheduleRefresh,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "marketing_avatars",
+          filter: `user_id=eq.${userId}`,
+        },
+        scheduleRefresh,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "marketing_content_ideas",
           filter: `user_id=eq.${userId}`,
         },
         scheduleRefresh,

@@ -8,7 +8,14 @@ import { z } from "zod";
 import * as projectsDb from "@/lib/db/projects";
 import * as tasksDb from "@/lib/db/tasks";
 import * as phasesDb from "@/lib/db/phases";
-import type { Phase, Project, Task } from "@/types/db";
+import * as marketingDb from "@/lib/db/marketing";
+import type {
+  MarketingAvatar,
+  MarketingContentIdea,
+  Phase,
+  Project,
+  Task,
+} from "@/types/db";
 
 function revalidateApp() {
   // App de un solo dueno: revalidar el arbol de la app mantiene todo consistente.
@@ -249,5 +256,83 @@ export async function moveTaskOnBoardAction(
 
 export async function reorderTasksAction(ids: string[]): Promise<void> {
   await tasksDb.reorderTasks(z.array(z.string().uuid()).parse(ids));
+  revalidateApp();
+}
+
+// ---------- Marketing: avatares e ideas de contenido ----------
+
+const marketingContentStatus = z.enum(["idea", "en_proceso", "publicado"]);
+
+const updateAvatarSchema = z.object({
+  name: z.string().trim().min(1, "El nombre no puede estar vacio").max(120).optional(),
+  headline: z.string().trim().max(200).nullish(),
+  description: z.string().trim().max(8000).nullish(),
+  color: z.string().nullish(),
+  icon: z.string().nullish(),
+});
+
+export async function updateAvatarAction(
+  id: string,
+  input: z.input<typeof updateAvatarSchema>,
+): Promise<MarketingAvatar> {
+  const data = updateAvatarSchema.parse(input);
+  const avatar = await marketingDb.updateAvatar(z.string().uuid().parse(id), data);
+  revalidateApp();
+  return avatar;
+}
+
+const createContentIdeaSchema = z.object({
+  avatar_id: z.string().uuid(),
+  title: z.string().trim().min(1, "El titulo no puede estar vacio").max(300),
+  notes: z.string().trim().max(8000).nullish(),
+  format: z.string().trim().max(80).nullish(),
+  status: marketingContentStatus.optional(),
+});
+
+export async function createContentIdeaAction(
+  input: z.input<typeof createContentIdeaSchema>,
+): Promise<MarketingContentIdea> {
+  const data = createContentIdeaSchema.parse(input);
+  const idea = await marketingDb.createContentIdea(data);
+  revalidateApp();
+  return idea;
+}
+
+const updateContentIdeaSchema = z.object({
+  title: z.string().trim().min(1, "El titulo no puede estar vacio").max(300).optional(),
+  notes: z.string().trim().max(8000).nullish(),
+  format: z.string().trim().max(80).nullish(),
+  status: marketingContentStatus.optional(),
+});
+
+export async function updateContentIdeaAction(
+  id: string,
+  input: z.input<typeof updateContentIdeaSchema>,
+): Promise<MarketingContentIdea> {
+  const data = updateContentIdeaSchema.parse(input);
+  const idea = await marketingDb.updateContentIdea(z.string().uuid().parse(id), data);
+  revalidateApp();
+  return idea;
+}
+
+export async function setContentIdeaStatusAction(
+  id: string,
+  status: z.infer<typeof marketingContentStatus>,
+): Promise<MarketingContentIdea> {
+  const idea = await marketingDb.setContentIdeaStatus(
+    z.string().uuid().parse(id),
+    marketingContentStatus.parse(status),
+  );
+  revalidateApp();
+  return idea;
+}
+
+export async function deleteContentIdeaAction(id: string): Promise<void> {
+  await marketingDb.deleteContentIdea(z.string().uuid().parse(id));
+  revalidateApp();
+}
+
+export async function reorderContentIdeasAction(ids: string[]): Promise<void> {
+  await marketingDb.reorderContentIdeas(z.array(z.string().uuid()).parse(ids));
   revalidateApp();
 }

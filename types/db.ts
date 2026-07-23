@@ -32,6 +32,16 @@ export const PROJECT_STATUSES: ProjectStatus[] = [
 export const TASK_STATUSES: TaskStatus[] = ["inbox", "todo", "en_progreso", "hecho"];
 export const PRIORITIES: Priority[] = ["alta", "media", "baja"];
 
+// --- Vocabulario de Marketing (avatares e ideas de contenido) ---
+// Una idea de contenido nace como 'idea', pasa a 'en_proceso' y termina
+// 'publicado'. No hay reordenamiento automatico: el estado es senal, no decision.
+export type MarketingContentStatus = "idea" | "en_proceso" | "publicado";
+export const MARKETING_CONTENT_STATUSES: MarketingContentStatus[] = [
+  "idea",
+  "en_proceso",
+  "publicado",
+];
+
 // --- Forma generada estilo Supabase (para createClient<Database>) ---
 
 export interface Database {
@@ -288,6 +298,94 @@ export interface Database {
         };
         Relationships: [];
       };
+      marketing_avatars: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          slug: string;
+          headline: string | null;
+          description: string | null;
+          color: string | null;
+          icon: string | null;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          name: string;
+          slug: string;
+          headline?: string | null;
+          description?: string | null;
+          color?: string | null;
+          icon?: string | null;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          slug?: string;
+          headline?: string | null;
+          description?: string | null;
+          color?: string | null;
+          icon?: string | null;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      marketing_content_ideas: {
+        Row: {
+          id: string;
+          user_id: string;
+          avatar_id: string;
+          title: string;
+          notes: string | null;
+          format: string | null;
+          status: MarketingContentStatus;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          avatar_id: string;
+          title: string;
+          notes?: string | null;
+          format?: string | null;
+          status?: MarketingContentStatus;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          avatar_id?: string;
+          title?: string;
+          notes?: string | null;
+          format?: string | null;
+          status?: MarketingContentStatus;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "marketing_content_ideas_avatar_id_fkey";
+            columns: ["avatar_id"];
+            referencedRelation: "marketing_avatars";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -342,3 +440,23 @@ export type BotPendingAction =
 export type BotPendingActionInsert =
   Database["public"]["Tables"]["bot_pending_actions"]["Insert"];
 export type BotStateRow = Database["public"]["Tables"]["bot_state"]["Row"];
+
+// --- Marketing: avatares (buyer personas) e ideas de contenido ---
+
+export type MarketingAvatar = Database["public"]["Tables"]["marketing_avatars"]["Row"];
+export type MarketingAvatarInsert =
+  Database["public"]["Tables"]["marketing_avatars"]["Insert"];
+export type MarketingAvatarUpdate =
+  Database["public"]["Tables"]["marketing_avatars"]["Update"];
+
+export type MarketingContentIdea =
+  Database["public"]["Tables"]["marketing_content_ideas"]["Row"];
+export type MarketingContentIdeaInsert =
+  Database["public"]["Tables"]["marketing_content_ideas"]["Insert"];
+export type MarketingContentIdeaUpdate =
+  Database["public"]["Tables"]["marketing_content_ideas"]["Update"];
+
+// Avatar con sus ideas de contenido ya agrupadas (uso en la vista de Marketing).
+export type MarketingAvatarWithIdeas = MarketingAvatar & {
+  ideas: MarketingContentIdea[];
+};

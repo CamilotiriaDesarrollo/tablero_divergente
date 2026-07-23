@@ -34,6 +34,12 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Banco de ideas para promover a proyecto",
   },
   {
+    href: "/marketing",
+    label: "Marketing",
+    icon: "Megaphone",
+    description: "Avatares e ideas de contenido",
+  },
+  {
     href: "/calendario",
     label: "Calendario",
     icon: "CalendarDays",
