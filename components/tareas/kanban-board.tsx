@@ -26,10 +26,14 @@ import { moveTaskOnBoardAction } from "@/lib/db/actions";
 import { markLocalMutation } from "@/lib/realtime/echo-guard";
 import { KanbanColumn } from "@/components/tareas/kanban-column";
 import { PriorityBadge } from "@/components/tareas/priority-badge";
-import { BOARD_STATUSES } from "@/components/tareas/task-constants";
+import {
+  BOARD_STATUSES,
+  type TodoSortMode,
+} from "@/components/tareas/task-constants";
 
 type Columns = Record<TaskStatus, TaskWithProject[]>;
 const DOING_TASK_STORAGE_KEY = "tablero-divergente:doing-task";
+const TODO_SORT_STORAGE_KEY = "tablero-divergente:todo-orden";
 
 function groupByStatus(tasks: TaskWithProject[]): Columns {
   const cols: Columns = { inbox: [], todo: [], en_progreso: [], hecho: [] };
@@ -41,6 +45,22 @@ function groupByStatus(tasks: TaskWithProject[]): Columns {
     cols[status].sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at));
   }
   return cols;
+}
+
+/**
+ * Orden por fecha de entrega para "Por hacer": vencidas y hoy primero, luego lo
+ * mas cercano; sin fecha al final. Solo para MOSTRAR, no toca el orden manual
+ * guardado (position) para poder volver a "Manual" sin perder nada.
+ */
+function sortTodoByDueDate(tasks: TaskWithProject[]): TaskWithProject[] {
+  return [...tasks].sort((a, b) => {
+    if (a.due_at && b.due_at) {
+      return a.due_at.localeCompare(b.due_at) || a.position - b.position;
+    }
+    if (a.due_at) return -1;
+    if (b.due_at) return 1;
+    return a.position - b.position;
+  });
 }
 
 function isColumnId(id: UniqueIdentifier): id is TaskStatus {
@@ -58,6 +78,7 @@ export function KanbanBoard({
   const [columns, setColumns] = useState<Columns>(() => groupByStatus(tasks));
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [doingTaskId, setDoingTaskId] = useState<string | null>(null);
+  const [todoSort, setTodoSort] = useState<TodoSortMode>("manual");
   const startContainerRef = useRef<TaskStatus | null>(null);
   const draggingRef = useRef(false);
 
@@ -69,6 +90,8 @@ export function KanbanBoard({
 
   useEffect(() => {
     setDoingTaskId(window.localStorage.getItem(DOING_TASK_STORAGE_KEY));
+    const savedSort = window.localStorage.getItem(TODO_SORT_STORAGE_KEY);
+    if (savedSort === "manual" || savedSort === "fecha") setTodoSort(savedSort);
   }, []);
 
   useEffect(() => {
@@ -122,6 +145,19 @@ export function KanbanBoard({
       ? over.id
       : containerOf(over.id, columns);
     if (!sourceContainer || !destContainer) {
+      draggingRef.current = false;
+      return;
+    }
+
+    // "Por hacer" ordenada por fecha: el orden lo decide la fecha, no el
+    // arrastre. Reordenar DENTRO de esta columna no tiene efecto (vuelve
+    // "Manual" para reordenar a mano); mover HACIA otra columna si funciona.
+    // "En progreso" y "Finalizadas" son independientes: nunca entran aqui.
+    if (
+      sourceContainer === destContainer &&
+      sourceContainer === "todo" &&
+      todoSort === "fecha"
+    ) {
       draggingRef.current = false;
       return;
     }
@@ -208,6 +244,11 @@ export function KanbanBoard({
     });
   }
 
+  function changeTodoSort(next: TodoSortMode) {
+    setTodoSort(next);
+    window.localStorage.setItem(TODO_SORT_STORAGE_KEY, next);
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -225,10 +266,16 @@ export function KanbanBoard({
           <KanbanColumn
             key={status}
             status={status}
-            tasks={columns[status]}
+            tasks={
+              status === "todo" && todoSort === "fecha"
+                ? sortTodoByDueDate(columns.todo)
+                : columns[status]
+            }
             onEdit={onEdit}
             doingTaskId={doingTaskId}
             onToggleDoing={toggleDoing}
+            sortMode={status === "todo" ? todoSort : undefined}
+            onSortModeChange={status === "todo" ? changeTodoSort : undefined}
           />
         ))}
       </div>

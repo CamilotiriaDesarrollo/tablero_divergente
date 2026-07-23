@@ -40,3 +40,15 @@ export const CATEGORY_EMOJI: Record<string, string> = {
 
 /** Centinela para "sin seleccion" en los Select (base-ui no permite value vacio). */
 export const NONE_VALUE = "__none__";
+
+/**
+ * Orden de la columna "Por hacer" del Kanban: manual (arrastrar) o por fecha de
+ * entrega (hoy y vencidas primero). Solo aplica a "Por hacer"; "En progreso" y
+ * "Finalizadas" mantienen siempre su orden manual, independiente de esto.
+ */
+export type TodoSortMode = "manual" | "fecha";
+
+export const TODO_SORT_LABEL: Record<TodoSortMode, string> = {
+  manual: "Manual",
+  fecha: "Por fecha",
+};
