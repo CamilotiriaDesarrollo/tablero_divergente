@@ -6,6 +6,7 @@
 // filtra por ownerId() en modo dueno. Las lecturas son tolerantes: si la tabla
 // aun no existe (migracion 0006 sin aplicar) devuelven [] en vez de romper la
 // pagina.
+import { randomUUID } from "node:crypto";
 import { dbContext, ownerId } from "@/lib/db/context";
 import { isSupabaseConfigured } from "@/lib/config";
 import type {
@@ -40,6 +41,42 @@ async function requireUserId(): Promise<string> {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
   return user.id;
+}
+
+const FALLBACK_PATTERN = /\n?\[\[TABLERO_CONTRASTS:([A-Za-z0-9_-]+)\]\]\s*$/;
+
+function fallbackObservations(avatar: MarketingAvatar): MarketingAvatarObservation[] {
+  const encoded = avatar.description?.match(FALLBACK_PATTERN)?.[1];
+  if (!encoded) return [];
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(encoded, "base64url").toString("utf8"),
+    ) as MarketingAvatarObservation[];
+    return Array.isArray(parsed)
+      ? parsed.filter((item) => item.avatar_id === avatar.id)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function descriptionWithFallback(
+  description: string | null,
+  observations: MarketingAvatarObservation[],
+) {
+  const visibleDescription = (description ?? "").replace(FALLBACK_PATTERN, "").trimEnd();
+  const encoded = Buffer.from(JSON.stringify(observations), "utf8").toString("base64url");
+  return `${visibleDescription}${visibleDescription ? "\n" : ""}[[TABLERO_CONTRASTS:${encoded}]]`;
+}
+
+async function findFallbackObservation(id: string) {
+  const avatars = await getAvatars();
+  for (const avatar of avatars) {
+    const observations = fallbackObservations(avatar);
+    const index = observations.findIndex((item) => item.id === id);
+    if (index >= 0) return { avatar, observations, index };
+  }
+  return null;
 }
 
 // ---------- Consultas ----------
@@ -104,6 +141,10 @@ export async function getAvatarObservations(opts?: {
   avatarId?: string;
 }): Promise<MarketingAvatarObservation[]> {
   if (!isSupabaseConfigured()) return [];
+  const avatars = await getAvatars();
+  const fallback = avatars
+    .filter((avatar) => !opts?.avatarId || avatar.id === opts.avatarId)
+    .flatMap(fallbackObservations);
   const supabase = await client();
   let query = supabase
     .from("marketing_avatar_observations")
@@ -114,10 +155,11 @@ export async function getAvatarObservations(opts?: {
   if (opts?.avatarId) query = query.eq("avatar_id", opts.avatarId);
   const { data, error } = await query;
   if (error) {
-    if (isMissingTable(error)) return [];
+    if (isMissingTable(error)) return fallback;
     throw error;
   }
-  return data ?? [];
+  const storedIds = new Set((data ?? []).map((item) => item.id));
+  return [...(data ?? []), ...fallback.filter((item) => !storedIds.has(item.id))];
 }
 
 /**
@@ -221,7 +263,28 @@ export async function createAvatarObservation(
     .insert({ ...input, user_id: userId })
     .select("*")
     .single();
-  if (error) throw error;
+  if (error) {
+    if (!isMissingTable(error)) throw error;
+    const avatar = await getAvatarById(input.avatar_id);
+    if (!avatar) throw new Error("No se encontro el perfil seleccionado");
+    const now = new Date().toISOString();
+    const observation: MarketingAvatarObservation = {
+      id: randomUUID(),
+      user_id: avatar.user_id,
+      avatar_id: avatar.id,
+      kind: input.kind ?? "nota",
+      title: input.title,
+      content: input.content ?? null,
+      status: input.status ?? "en_observacion",
+      created_at: now,
+      updated_at: now,
+    };
+    const observations = [observation, ...fallbackObservations(avatar)];
+    await updateAvatar(avatar.id, {
+      description: descriptionWithFallback(avatar.description, observations),
+    });
+    return observation;
+  }
   return data;
 }
 
@@ -229,6 +292,25 @@ export async function updateAvatarObservation(
   id: string,
   patch: MarketingAvatarObservationUpdate,
 ): Promise<MarketingAvatarObservation> {
+  const fallback = await findFallbackObservation(id);
+  if (fallback) {
+    const updated: MarketingAvatarObservation = {
+      ...fallback.observations[fallback.index],
+      ...patch,
+      id,
+      user_id: fallback.avatar.user_id,
+      avatar_id: fallback.avatar.id,
+      updated_at: new Date().toISOString(),
+    };
+    fallback.observations[fallback.index] = updated;
+    await updateAvatar(fallback.avatar.id, {
+      description: descriptionWithFallback(
+        fallback.avatar.description,
+        fallback.observations,
+      ),
+    });
+    return updated;
+  }
   const supabase = await client();
   let query = supabase
     .from("marketing_avatar_observations")
@@ -242,6 +324,17 @@ export async function updateAvatarObservation(
 }
 
 export async function deleteAvatarObservation(id: string): Promise<void> {
+  const fallback = await findFallbackObservation(id);
+  if (fallback) {
+    fallback.observations.splice(fallback.index, 1);
+    await updateAvatar(fallback.avatar.id, {
+      description: descriptionWithFallback(
+        fallback.avatar.description,
+        fallback.observations,
+      ),
+    });
+    return;
+  }
   const supabase = await client();
   let query = supabase.from("marketing_avatar_observations").delete().eq("id", id);
   const uid = ownerId();
