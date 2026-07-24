@@ -86,7 +86,7 @@ export function AvatarProfileCard({ avatar }: { avatar: MarketingAvatar }) {
           </div>
         )}
         {profileWord ? (
-          <span className="absolute inset-0 grid place-items-center text-lg font-semibold text-white drop-shadow-md">
+          <span className="pointer-events-none absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-center text-lg font-semibold text-white drop-shadow-md">
             {profileWord}
           </span>
         ) : null}
