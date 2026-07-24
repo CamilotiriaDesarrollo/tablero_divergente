@@ -69,6 +69,16 @@ export function RealtimeRefresher({ userId }: { userId: string }) {
         },
         scheduleRefresh,
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "marketing_planner_items",
+          filter: `user_id=eq.${userId}`,
+        },
+        scheduleRefresh,
+      )
       .subscribe();
 
     return () => {

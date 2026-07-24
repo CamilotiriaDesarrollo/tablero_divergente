@@ -76,9 +76,11 @@ async function observationRequest(
 export function AvatarInsightsPanel({
   avatarId,
   observations,
+  embedded = false,
 }: {
   avatarId: string;
   observations: MarketingAvatarObservation[];
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -147,11 +149,24 @@ export function AvatarInsightsPanel({
   }
 
   return (
-    <section className="rounded-xl bg-secondary/55 p-4 ring-1 ring-foreground/10">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-heading text-base font-semibold">Contraste</h2>
-        </div>
+    <section
+      aria-label="Contraste"
+      className={
+        embedded
+          ? "pb-1"
+          : "rounded-xl bg-secondary/55 p-4 ring-1 ring-foreground/10"
+      }
+    >
+      <div
+        className={`flex flex-wrap items-start gap-3 ${
+          embedded ? "justify-end" : "justify-between"
+        }`}
+      >
+        {!embedded ? (
+          <div>
+            <h2 className="font-heading text-base font-semibold">Contraste</h2>
+          </div>
+        ) : null}
         <div className="flex gap-1.5 text-xs">
           <span className="rounded-md bg-amber-500/15 px-2 py-1 text-amber-700 dark:text-amber-300">
             {totals.open} por validar

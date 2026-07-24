@@ -67,6 +67,22 @@ export const MARKETING_CONTENT_STATUSES: MarketingContentStatus[] = [
   "publicado",
 ];
 
+// Planeador de contenidos: una pieza pasa de 'borrador' a 'en_proceso', queda
+// 'listo' para publicar y termina 'publicado'. El estado es senal, no decision:
+// cambiarlo no reordena nada (CLAUDE.md).
+export type MarketingPlannerStatus =
+  | "borrador"
+  | "en_proceso"
+  | "listo"
+  | "publicado";
+
+export const MARKETING_PLANNER_STATUSES: MarketingPlannerStatus[] = [
+  "borrador",
+  "en_proceso",
+  "listo",
+  "publicado",
+];
+
 // --- Forma generada estilo Supabase (para createClient<Database>) ---
 
 export interface Database {
@@ -469,6 +485,73 @@ export interface Database {
           },
         ];
       };
+      marketing_planner_items: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          network: string | null;
+          content_type: string | null;
+          avatar_ids: string[];
+          hook: string | null;
+          angle: string | null;
+          bullets: string[];
+          script: string | null;
+          cta: string | null;
+          status: MarketingPlannerStatus;
+          scheduled_for: string | null;
+          source_idea_id: string | null;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          title: string;
+          network?: string | null;
+          content_type?: string | null;
+          avatar_ids?: string[];
+          hook?: string | null;
+          angle?: string | null;
+          bullets?: string[];
+          script?: string | null;
+          cta?: string | null;
+          status?: MarketingPlannerStatus;
+          scheduled_for?: string | null;
+          source_idea_id?: string | null;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          network?: string | null;
+          content_type?: string | null;
+          avatar_ids?: string[];
+          hook?: string | null;
+          angle?: string | null;
+          bullets?: string[];
+          script?: string | null;
+          cta?: string | null;
+          status?: MarketingPlannerStatus;
+          scheduled_for?: string | null;
+          source_idea_id?: string | null;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "marketing_planner_items_source_idea_id_fkey";
+            columns: ["source_idea_id"];
+            referencedRelation: "marketing_content_ideas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -550,3 +633,12 @@ export type MarketingAvatarWithIdeas = MarketingAvatar & {
   ideas: MarketingContentIdea[];
   observations: MarketingAvatarObservation[];
 };
+
+// Planeador de contenidos: la pieza completa (red, tipo, avatares, hook, angulo,
+// bullets, guion y CTA) que se planea y publica.
+export type MarketingPlannerItem =
+  Database["public"]["Tables"]["marketing_planner_items"]["Row"];
+export type MarketingPlannerItemInsert =
+  Database["public"]["Tables"]["marketing_planner_items"]["Insert"];
+export type MarketingPlannerItemUpdate =
+  Database["public"]["Tables"]["marketing_planner_items"]["Update"];

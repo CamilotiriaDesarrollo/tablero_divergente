@@ -6,7 +6,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, ListTodo, Pencil, Trash2 } from "lucide-react";
+import { Check, ClipboardList, ListTodo, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -34,6 +34,7 @@ import {
 import {
   deleteContentIdeaAction,
   createTaskAction,
+  sendIdeaToPlannerAction,
   setContentIdeaStatusAction,
   updateContentIdeaAction,
 } from "@/lib/db/actions";
@@ -134,6 +135,20 @@ export function ContentIdeaCard({ idea }: { idea: MarketingContentIdea }) {
     });
   }
 
+  function sendToPlanner() {
+    startTransition(async () => {
+      try {
+        await sendIdeaToPlannerAction(idea.id);
+        toast.success("Idea llevada al planeador");
+        router.refresh();
+      } catch (error) {
+        toast.error("No se pudo llevar al planeador", {
+          description: error instanceof Error ? error.message : "Intenta de nuevo.",
+        });
+      }
+    });
+  }
+
   return (
     <>
       <Card className="h-full gap-2">
@@ -193,6 +208,17 @@ export function ContentIdeaCard({ idea }: { idea: MarketingContentIdea }) {
           >
             {idea.task_id ? <Check /> : <ListTodo />}
             {idea.task_id ? "En tareas" : "A tareas"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={sendToPlanner}
+            disabled={pending}
+            aria-label="Llevar idea al planeador"
+          >
+            <ClipboardList />
+            Al planeador
           </Button>
           <div className="ml-auto flex items-center gap-1">
             <Button

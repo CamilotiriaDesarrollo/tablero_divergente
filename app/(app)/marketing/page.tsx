@@ -3,7 +3,7 @@
 // cada uno. Los 4 avatares base vienen sembrados por la migracion 0006; si la
 // tabla aun no existe, la pagina muestra un estado vacio que invita a aplicarla.
 import { Megaphone } from "lucide-react";
-import { getMarketingBoard } from "@/lib/db/marketing";
+import { getMarketingBoard, getPlannerItems } from "@/lib/db/marketing";
 import { MarketingBoard } from "@/components/marketing/marketing-board";
 
 export const metadata = {
@@ -11,7 +11,10 @@ export const metadata = {
 };
 
 export default async function MarketingPage() {
-  const avatars = await getMarketingBoard();
+  const [avatars, plannerItems] = await Promise.all([
+    getMarketingBoard(),
+    getPlannerItems(),
+  ]);
 
   return (
     <main className="mx-auto -mt-6 w-full max-w-6xl px-4 pb-8 pt-0 sm:px-6 lg:pb-10">
@@ -31,7 +34,7 @@ export default async function MarketingPage() {
           </div>
         </div>
       ) : (
-        <MarketingBoard avatars={avatars} />
+        <MarketingBoard avatars={avatars} plannerItems={plannerItems} />
       )}
     </main>
   );

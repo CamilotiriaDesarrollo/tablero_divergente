@@ -20,6 +20,10 @@ import type {
   MarketingContentIdeaInsert,
   MarketingContentIdeaUpdate,
   MarketingContentStatus,
+  MarketingPlannerItem,
+  MarketingPlannerItemInsert,
+  MarketingPlannerItemUpdate,
+  MarketingPlannerStatus,
 } from "@/types/db";
 
 // Codigos de "tabla inexistente": Postgres crudo (42P01) y PostgREST (PGRST205).
@@ -357,4 +361,135 @@ export async function reorderContentIdeas(ids: string[]): Promise<void> {
       return query;
     }),
   );
+}
+
+// ---------- Planeador de contenidos ----------
+
+/**
+ * Piezas del planeador de contenidos. Tolerante si la tabla no existe todavia
+ * (migracion 0013 sin aplicar): devuelve [] en vez de romper la pagina.
+ */
+export async function getPlannerItems(): Promise<MarketingPlannerItem[]> {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = await client();
+  let query = supabase
+    .from("marketing_planner_items")
+    .select("*")
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: false });
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query;
+  if (error) {
+    if (isMissingTable(error)) return [];
+    throw error;
+  }
+  return data ?? [];
+}
+
+export async function createPlannerItem(
+  input: Omit<MarketingPlannerItemInsert, "user_id">,
+): Promise<MarketingPlannerItem> {
+  const supabase = await client();
+  const userId = await requireUserId();
+  const { data, error } = await supabase
+    .from("marketing_planner_items")
+    .insert({ ...input, user_id: userId })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updatePlannerItem(
+  id: string,
+  patch: MarketingPlannerItemUpdate,
+): Promise<MarketingPlannerItem> {
+  const supabase = await client();
+  let query = supabase.from("marketing_planner_items").update(patch).eq("id", id);
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query.select("*").single();
+  if (error) throw error;
+  return data;
+}
+
+export async function setPlannerItemStatus(
+  id: string,
+  status: MarketingPlannerStatus,
+): Promise<MarketingPlannerItem> {
+  return updatePlannerItem(id, { status });
+}
+
+export async function deletePlannerItem(id: string): Promise<void> {
+  const supabase = await client();
+  let query = supabase.from("marketing_planner_items").delete().eq("id", id);
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { error } = await query;
+  if (error) throw error;
+}
+
+/** Reordena piezas del planeador segun el arreglo de ids (orden manual). */
+export async function reorderPlannerItems(ids: string[]): Promise<void> {
+  const supabase = await client();
+  const uid = ownerId();
+  await Promise.all(
+    ids.map((id, index) => {
+      let query = supabase
+        .from("marketing_planner_items")
+        .update({ position: index })
+        .eq("id", id);
+      if (uid) query = query.eq("user_id", uid);
+      return query;
+    }),
+  );
+}
+
+/**
+ * Lleva una idea de contenido al planeador: crea una pieza en borrador tomando
+ * titulo, avatar objetivo y formato de la idea, y deja el rastro (source_idea_id)
+ * para no duplicarla. Marca la idea original como 'en_proceso'.
+ */
+export async function createPlannerItemFromIdea(
+  ideaId: string,
+): Promise<MarketingPlannerItem> {
+  const supabase = await client();
+  const uid = ownerId();
+
+  // Dedup: si la idea ya se llevo al planeador, devolver esa pieza en vez de
+  // crear otra (el comentario historico prometia el rastro source_idea_id).
+  let existingQuery = supabase
+    .from("marketing_planner_items")
+    .select("*")
+    .eq("source_idea_id", ideaId)
+    .limit(1);
+  if (uid) existingQuery = existingQuery.eq("user_id", uid);
+  const { data: existing, error: existingError } = await existingQuery;
+  if (existingError && !isMissingTable(existingError)) throw existingError;
+  if (existing && existing.length > 0) return existing[0];
+
+  let ideaQuery = supabase
+    .from("marketing_content_ideas")
+    .select("*")
+    .eq("id", ideaId);
+  if (uid) ideaQuery = ideaQuery.eq("user_id", uid);
+  const { data: idea, error: ideaError } = await ideaQuery.maybeSingle();
+  if (ideaError) throw ideaError;
+  if (!idea) throw new Error("No se encontro la idea seleccionada");
+
+  // El desarrollo de la idea (notes, hasta 8000) va al guion (limite 12000), no
+  // al angulo (limite 2000), para que la pieza siempre se pueda reguardar.
+  const item = await createPlannerItem({
+    title: idea.title,
+    content_type: idea.format,
+    avatar_ids: [idea.avatar_id],
+    script: idea.notes,
+    source_idea_id: idea.id,
+    status: "borrador",
+  });
+  if (idea.status === "idea") {
+    await updateContentIdea(idea.id, { status: "en_proceso" });
+  }
+  return item;
 }

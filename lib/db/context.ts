@@ -54,9 +54,11 @@ export function runWithDbContext<T>(ctx: DbContext, fn: () => Promise<T>): Promi
 }
 
 /**
- * Filtro de dueno para defensa en profundidad: devuelve el user_id fijo cuando
- * el contexto lo define (bot / service_role, donde RLS no aplica) y null en la
- * web (donde RLS ya filtra y anadir el filtro exigiria una llamada extra de auth).
+ * Filtro de dueno: user_id fijo con el que lib/db limita cada consulta/mutacion.
+ * En modo dueno unico siempre devuelve OWNER_USER_ID (web y bot); solo seria null
+ * si un contexto dejara userId sin definir. OJO: la RLS de este proyecto es
+ * PERMISIVA (using(true) with check(true)); el aislamiento por user_id lo
+ * garantiza EXCLUSIVAMENTE este filtro desde lib/db, no la RLS.
  */
 export function ownerId(): string | null {
   return dbContext().userId;

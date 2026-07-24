@@ -13,6 +13,7 @@ import type {
   MarketingAvatar,
   MarketingAvatarObservation,
   MarketingContentIdea,
+  MarketingPlannerItem,
   Phase,
   Project,
   Task,
@@ -383,4 +384,82 @@ export async function updateAvatarObservationAction(
 export async function deleteAvatarObservationAction(id: string): Promise<void> {
   await marketingDb.deleteAvatarObservation(z.string().uuid().parse(id));
   revalidateApp();
+}
+
+// ---------- Marketing: planeador de contenidos ----------
+
+const marketingPlannerStatus = z.enum([
+  "borrador",
+  "en_proceso",
+  "listo",
+  "publicado",
+]);
+
+const createPlannerItemSchema = z.object({
+  title: z.string().trim().min(1, "El titulo no puede estar vacio").max(300),
+  network: z.string().trim().max(80).nullish(),
+  content_type: z.string().trim().max(80).nullish(),
+  avatar_ids: z.array(z.string().uuid()).max(20).optional(),
+  hook: z.string().trim().max(2000).nullish(),
+  angle: z.string().trim().max(2000).nullish(),
+  bullets: z.array(z.string().trim().max(1000)).max(40).optional(),
+  script: z.string().trim().max(12000).nullish(),
+  cta: z.string().trim().max(500).nullish(),
+  status: marketingPlannerStatus.optional(),
+  scheduled_for: isoDate.nullish(),
+  source_idea_id: z.string().uuid().nullish(),
+});
+
+export async function createPlannerItemAction(
+  input: z.input<typeof createPlannerItemSchema>,
+): Promise<MarketingPlannerItem> {
+  const data = createPlannerItemSchema.parse(input);
+  const item = await marketingDb.createPlannerItem(data);
+  revalidateApp();
+  return item;
+}
+
+const updatePlannerItemSchema = createPlannerItemSchema.partial();
+
+export async function updatePlannerItemAction(
+  id: string,
+  input: z.input<typeof updatePlannerItemSchema>,
+): Promise<MarketingPlannerItem> {
+  const data = updatePlannerItemSchema.parse(input);
+  const item = await marketingDb.updatePlannerItem(z.string().uuid().parse(id), data);
+  revalidateApp();
+  return item;
+}
+
+export async function setPlannerItemStatusAction(
+  id: string,
+  status: z.infer<typeof marketingPlannerStatus>,
+): Promise<MarketingPlannerItem> {
+  const item = await marketingDb.setPlannerItemStatus(
+    z.string().uuid().parse(id),
+    marketingPlannerStatus.parse(status),
+  );
+  revalidateApp();
+  return item;
+}
+
+export async function deletePlannerItemAction(id: string): Promise<void> {
+  await marketingDb.deletePlannerItem(z.string().uuid().parse(id));
+  revalidateApp();
+}
+
+export async function reorderPlannerItemsAction(ids: string[]): Promise<void> {
+  await marketingDb.reorderPlannerItems(z.array(z.string().uuid()).parse(ids));
+  revalidateApp();
+}
+
+/** Lleva una idea de contenido al planeador (crea la pieza en borrador). */
+export async function sendIdeaToPlannerAction(
+  ideaId: string,
+): Promise<MarketingPlannerItem> {
+  const item = await marketingDb.createPlannerItemFromIdea(
+    z.string().uuid().parse(ideaId),
+  );
+  revalidateApp();
+  return item;
 }

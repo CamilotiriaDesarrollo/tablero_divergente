@@ -5,35 +5,19 @@
 // y espacio de trabajo (captura de ideas + tarjetas). En movil se apila todo
 // verticalmente y el selector pasa a fila horizontal con scroll.
 import { useState } from "react";
-import { Megaphone } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AvatarProfileCard } from "@/components/marketing/avatar-profile-card";
 import { PersonaDocument } from "@/components/marketing/persona-document";
 import { ContentIdeaCard } from "@/components/marketing/content-idea-card";
 import { ContentIdeaQuickCapture } from "@/components/marketing/content-idea-quick-capture";
-import { AvatarInsightsPanel } from "@/components/marketing/avatar-insights-panel";
+import { ChannelsView } from "@/components/marketing/channels-view";
+import { PlannerBoard } from "@/components/marketing/planner-board";
 import { projectColorValue } from "@/components/proyectos/project-colors";
-import type { MarketingAvatarWithIdeas } from "@/types/db";
-
-function ChannelsPlaceholder() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card/40 px-6 py-16 text-center">
-      <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <Megaphone className="size-6" />
-      </div>
-      <div className="space-y-1">
-        <h2 className="font-heading text-lg font-medium">
-          Canales todavia no esta definido
-        </h2>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          Esta seccion se construye con la siguiente definicion. Por ahora
-          queda la pestana lista para cuando la desarrollemos.
-        </p>
-      </div>
-    </div>
-  );
-}
+import type {
+  MarketingAvatarWithIdeas,
+  MarketingPlannerItem,
+} from "@/types/db";
 
 function AvatarSelect({
   avatars,
@@ -86,11 +70,18 @@ function AvatarSelect({
 
 export function MarketingBoard({
   avatars,
+  plannerItems,
 }: {
   avatars: MarketingAvatarWithIdeas[];
+  plannerItems: MarketingPlannerItem[];
 }) {
   const [activeId, setActiveId] = useState(avatars[0]?.id);
   const active = avatars.find((a) => a.id === activeId) ?? avatars[0];
+  const avatarOptions = avatars.map((a) => ({
+    id: a.id,
+    name: a.name,
+    color: a.color,
+  }));
 
   if (!active) return null;
 
@@ -99,6 +90,7 @@ export function MarketingBoard({
       <TabsList className="h-9 w-fit">
         <TabsTrigger value="avatares">Avatares</TabsTrigger>
         <TabsTrigger value="canales">Canales</TabsTrigger>
+        <TabsTrigger value="planeador">Planeador</TabsTrigger>
       </TabsList>
 
       <TabsContent value="avatares">
@@ -110,14 +102,14 @@ export function MarketingBoard({
               onSelect={setActiveId}
             />
             <AvatarProfileCard avatar={active} />
-            <PersonaDocument avatar={active} />
+            <PersonaDocument
+              key={active.id}
+              avatar={active}
+              observations={active.observations}
+            />
           </aside>
 
           <section className="min-w-0 space-y-4">
-            <AvatarInsightsPanel
-              avatarId={active.id}
-              observations={active.observations}
-            />
             <ContentIdeaQuickCapture avatarId={active.id} avatarName={active.name} />
             {active.ideas.length ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -135,7 +127,11 @@ export function MarketingBoard({
       </TabsContent>
 
       <TabsContent value="canales">
-        <ChannelsPlaceholder />
+        <ChannelsView />
+      </TabsContent>
+
+      <TabsContent value="planeador">
+        <PlannerBoard items={plannerItems} avatars={avatarOptions} />
       </TabsContent>
     </Tabs>
   );

@@ -2,16 +2,22 @@
 // components/marketing/persona-document.tsx
 // La ficha completa mantiene sus titulos siempre visibles; cada detalle se
 // abre desde su propio acordeon para consultar solo lo necesario.
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { AvatarInsightsPanel } from "@/components/marketing/avatar-insights-panel";
 import { PersonaBlockView } from "@/components/marketing/persona-blocks";
 import { projectColorValue } from "@/components/proyectos/project-colors";
-import type { MarketingAvatar, PersonaBlock, PersonaSection } from "@/types/db";
+import type {
+  MarketingAvatar,
+  MarketingAvatarObservation,
+  PersonaBlock,
+  PersonaSection,
+} from "@/types/db";
 
 const PERSONA_NAMES: Record<string, { selected: string; alternate: string }> = {
   mateo: { selected: "Mateo", alternate: "Mariana" },
@@ -77,10 +83,24 @@ function personalizeSections(
   }));
 }
 
-export function PersonaDocument({ avatar }: { avatar: MarketingAvatar }) {
+export function PersonaDocument({
+  avatar,
+  observations,
+}: {
+  avatar: MarketingAvatar;
+  observations: MarketingAvatarObservation[];
+}) {
   const sections = personalizeSections(avatar.persona_sections ?? [], avatar);
   const [openIds, setOpenIds] = useState<string[]>([]);
   const accent = projectColorValue(avatar.color);
+  const hypothesisSectionIndex = sections.reduce(
+    (lastMatch, section, index) =>
+      /hip[o\u00f3]tesis/i.test(section.title) ? index : lastMatch,
+    -1,
+  );
+  const contrastAfterIndex =
+    hypothesisSectionIndex >= 0 ? hypothesisSectionIndex : sections.length - 1;
+  const contrastNumber = String(contrastAfterIndex + 2).padStart(2, "0");
 
   if (!sections.length) return null;
 
@@ -93,29 +113,61 @@ export function PersonaDocument({ avatar }: { avatar: MarketingAvatar }) {
         className="px-4"
       >
         {sections.map((section, index) => (
-          <AccordionItem key={section.title} value={String(index)}>
-            <AccordionTrigger>
-              <span className="flex items-start gap-2.5 text-left">
-                <span
-                  aria-hidden="true"
-                  className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md font-mono text-[10px] font-semibold"
-                  style={{ backgroundColor: `${accent}1f`, color: accent }}
-                >
-                  {String(index + 1).padStart(2, "0")}
+          <Fragment key={section.title}>
+            <AccordionItem value={String(index)}>
+              <AccordionTrigger>
+                <span className="flex items-start gap-2.5 text-left">
+                  <span
+                    aria-hidden="true"
+                    className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md font-mono text-[10px] font-semibold"
+                    style={{ backgroundColor: `${accent}1f`, color: accent }}
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="font-heading text-sm font-semibold leading-snug">
+                    {section.title}
+                  </span>
                 </span>
-                <span className="font-heading text-sm font-semibold leading-snug">
-                  {section.title}
-                </span>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-4 pl-8">
-                {section.blocks.map((block, blockIndex) => (
-                  <PersonaBlockView key={blockIndex} block={block} />
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-4 pl-8">
+                  {section.blocks.map((block, blockIndex) => (
+                    <PersonaBlockView key={blockIndex} block={block} />
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {index === contrastAfterIndex ? (
+              <AccordionItem
+                value="contraste"
+                className="-mx-4 bg-rose-500/[0.04] px-4 ring-1 ring-inset ring-rose-500/15"
+              >
+                <AccordionTrigger className="text-rose-700 hover:text-rose-800 dark:text-rose-300 dark:hover:text-rose-200">
+                  <span className="flex items-start gap-2.5 text-left">
+                    <span
+                      aria-hidden="true"
+                      className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-rose-500/15 font-mono text-[10px] font-semibold text-rose-700 dark:text-rose-300"
+                    >
+                      {contrastNumber}
+                    </span>
+                    <span className="font-heading text-sm font-semibold leading-snug">
+                      Contraste y validacion
+                    </span>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pl-8">
+                    <AvatarInsightsPanel
+                      avatarId={avatar.id}
+                      observations={observations}
+                      embedded
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ) : null}
+          </Fragment>
         ))}
       </Accordion>
     </div>
