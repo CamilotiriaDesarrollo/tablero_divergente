@@ -14,11 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  createAvatarObservationAction,
-  deleteAvatarObservationAction,
-  updateAvatarObservationAction,
-} from "@/lib/db/actions";
 import type {
   MarketingAvatarObservation,
   MarketingObservationKind,
@@ -56,11 +51,26 @@ function labelForStatus(status: MarketingObservationStatus) {
 }
 
 function persistenceErrorMessage(error: unknown) {
-  const details = error as { code?: string; message?: string };
-  if (details?.code === "PGRST205") {
-    return "Falta habilitar Contraste en Supabase. Ejecuta la migracion 0009_marketing_avatar_observations.sql.";
-  }
   return error instanceof Error ? error.message : "Intenta de nuevo.";
+}
+
+async function observationRequest(
+  method: "POST" | "PATCH" | "DELETE",
+  body: Record<string, unknown>,
+) {
+  const response = await fetch("/api/marketing/observations", {
+    method,
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | { error?: string }
+    | null;
+  if (!response.ok) {
+    throw new Error(payload?.error || "No se pudo completar la operacion.");
+  }
+  return payload;
 }
 
 export function AvatarInsightsPanel({
@@ -91,7 +101,7 @@ export function AvatarInsightsPanel({
     }
     startTransition(async () => {
       try {
-        await createAvatarObservationAction({
+        await observationRequest("POST", {
           avatar_id: avatarId,
           title: title.trim(),
           content: null,
@@ -112,7 +122,7 @@ export function AvatarInsightsPanel({
   function updateStatus(id: string, nextStatus: MarketingObservationStatus) {
     startTransition(async () => {
       try {
-        await updateAvatarObservationAction(id, { status: nextStatus });
+        await observationRequest("PATCH", { id, status: nextStatus });
         router.refresh();
       } catch (error) {
         toast.error("No se pudo actualizar", {
@@ -125,7 +135,7 @@ export function AvatarInsightsPanel({
   function removeObservation(id: string) {
     startTransition(async () => {
       try {
-        await deleteAvatarObservationAction(id);
+        await observationRequest("DELETE", { id });
         toast.success("Registro eliminado");
         router.refresh();
       } catch (error) {
