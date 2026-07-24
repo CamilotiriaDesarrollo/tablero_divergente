@@ -10,6 +10,9 @@ import { dbContext, ownerId } from "@/lib/db/context";
 import { isSupabaseConfigured } from "@/lib/config";
 import type {
   MarketingAvatar,
+  MarketingAvatarObservation,
+  MarketingAvatarObservationInsert,
+  MarketingAvatarObservationUpdate,
   MarketingAvatarUpdate,
   MarketingAvatarWithIdeas,
   MarketingContentIdea,
@@ -96,13 +99,38 @@ export async function getContentIdeas(opts?: {
   return data ?? [];
 }
 
+/** Registro de aprendizaje, evidencia e hipotesis de los avatares. */
+export async function getAvatarObservations(opts?: {
+  avatarId?: string;
+}): Promise<MarketingAvatarObservation[]> {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = await client();
+  let query = supabase
+    .from("marketing_avatar_observations")
+    .select("*")
+    .order("created_at", { ascending: false });
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  if (opts?.avatarId) query = query.eq("avatar_id", opts.avatarId);
+  const { data, error } = await query;
+  if (error) {
+    if (isMissingTable(error)) return [];
+    throw error;
+  }
+  return data ?? [];
+}
+
 /**
  * Avatares con sus ideas ya agrupadas, para la vista de Marketing. Hace dos
  * consultas (avatares + ideas) y agrupa en memoria; evita el N+1 de pedir las
  * ideas avatar por avatar.
  */
 export async function getMarketingBoard(): Promise<MarketingAvatarWithIdeas[]> {
-  const [avatars, ideas] = await Promise.all([getAvatars(), getContentIdeas()]);
+  const [avatars, ideas, observations] = await Promise.all([
+    getAvatars(),
+    getContentIdeas(),
+    getAvatarObservations(),
+  ]);
   const ideasByAvatar = new Map<string, MarketingContentIdea[]>();
   for (const idea of ideas) {
     ideasByAvatar.set(idea.avatar_id, [
@@ -110,9 +138,17 @@ export async function getMarketingBoard(): Promise<MarketingAvatarWithIdeas[]> {
       idea,
     ]);
   }
+  const observationsByAvatar = new Map<string, MarketingAvatarObservation[]>();
+  for (const observation of observations) {
+    observationsByAvatar.set(observation.avatar_id, [
+      ...(observationsByAvatar.get(observation.avatar_id) ?? []),
+      observation,
+    ]);
+  }
   return avatars.map((avatar) => ({
     ...avatar,
     ideas: ideasByAvatar.get(avatar.id) ?? [],
+    observations: observationsByAvatar.get(avatar.id) ?? [],
   }));
 }
 
@@ -169,6 +205,45 @@ export async function setContentIdeaStatus(
 export async function deleteContentIdea(id: string): Promise<void> {
   const supabase = await client();
   let query = supabase.from("marketing_content_ideas").delete().eq("id", id);
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { error } = await query;
+  if (error) throw error;
+}
+
+export async function createAvatarObservation(
+  input: Omit<MarketingAvatarObservationInsert, "user_id">,
+): Promise<MarketingAvatarObservation> {
+  const supabase = await client();
+  const userId = await requireUserId();
+  const { data, error } = await supabase
+    .from("marketing_avatar_observations")
+    .insert({ ...input, user_id: userId })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateAvatarObservation(
+  id: string,
+  patch: MarketingAvatarObservationUpdate,
+): Promise<MarketingAvatarObservation> {
+  const supabase = await client();
+  let query = supabase
+    .from("marketing_avatar_observations")
+    .update(patch)
+    .eq("id", id);
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query.select("*").single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteAvatarObservation(id: string): Promise<void> {
+  const supabase = await client();
+  let query = supabase.from("marketing_avatar_observations").delete().eq("id", id);
   const uid = ownerId();
   if (uid) query = query.eq("user_id", uid);
   const { error } = await query;

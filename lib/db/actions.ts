@@ -11,6 +11,7 @@ import * as phasesDb from "@/lib/db/phases";
 import * as marketingDb from "@/lib/db/marketing";
 import type {
   MarketingAvatar,
+  MarketingAvatarObservation,
   MarketingContentIdea,
   Phase,
   Project,
@@ -262,6 +263,13 @@ export async function reorderTasksAction(ids: string[]): Promise<void> {
 // ---------- Marketing: avatares e ideas de contenido ----------
 
 const marketingContentStatus = z.enum(["idea", "en_proceso", "publicado"]);
+const marketingObservationKind = z.enum(["nota", "hipotesis", "evidencia"]);
+const marketingObservationStatus = z.enum([
+  "en_observacion",
+  "por_validar",
+  "confirmada",
+  "refutada",
+]);
 
 const updateAvatarSchema = z.object({
   name: z.string().trim().min(1, "El nombre no puede estar vacio").max(120).optional(),
@@ -303,6 +311,7 @@ const updateContentIdeaSchema = z.object({
   notes: z.string().trim().max(8000).nullish(),
   format: z.string().trim().max(80).nullish(),
   status: marketingContentStatus.optional(),
+  task_id: z.string().uuid().nullish(),
 });
 
 export async function updateContentIdeaAction(
@@ -334,5 +343,44 @@ export async function deleteContentIdeaAction(id: string): Promise<void> {
 
 export async function reorderContentIdeasAction(ids: string[]): Promise<void> {
   await marketingDb.reorderContentIdeas(z.array(z.string().uuid()).parse(ids));
+  revalidateApp();
+}
+
+const createAvatarObservationSchema = z.object({
+  avatar_id: z.string().uuid(),
+  kind: marketingObservationKind.optional(),
+  title: z.string().trim().min(1, "Escribe la nota o hipotesis").max(300),
+  content: z.string().trim().max(8000).nullish(),
+  status: marketingObservationStatus.optional(),
+});
+
+export async function createAvatarObservationAction(
+  input: z.input<typeof createAvatarObservationSchema>,
+): Promise<MarketingAvatarObservation> {
+  const observation = await marketingDb.createAvatarObservation(
+    createAvatarObservationSchema.parse(input),
+  );
+  revalidateApp();
+  return observation;
+}
+
+const updateAvatarObservationSchema = createAvatarObservationSchema
+  .omit({ avatar_id: true })
+  .partial();
+
+export async function updateAvatarObservationAction(
+  id: string,
+  input: z.input<typeof updateAvatarObservationSchema>,
+): Promise<MarketingAvatarObservation> {
+  const observation = await marketingDb.updateAvatarObservation(
+    z.string().uuid().parse(id),
+    updateAvatarObservationSchema.parse(input),
+  );
+  revalidateApp();
+  return observation;
+}
+
+export async function deleteAvatarObservationAction(id: string): Promise<void> {
+  await marketingDb.deleteAvatarObservation(z.string().uuid().parse(id));
   revalidateApp();
 }

@@ -4,67 +4,17 @@
 // Avatares, 3 columnas: selector vertical de avatar, perfil + ficha completa,
 // y espacio de trabajo (captura de ideas + tarjetas). En movil se apila todo
 // verticalmente y el selector pasa a fila horizontal con scroll.
-import { useMemo, useState } from "react";
-import { Megaphone, Search } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
+import { useState } from "react";
+import { Megaphone } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AvatarProfileCard } from "@/components/marketing/avatar-profile-card";
 import { PersonaDocument } from "@/components/marketing/persona-document";
 import { ContentIdeaCard } from "@/components/marketing/content-idea-card";
 import { ContentIdeaQuickCapture } from "@/components/marketing/content-idea-quick-capture";
+import { AvatarInsightsPanel } from "@/components/marketing/avatar-insights-panel";
 import { projectColorValue } from "@/components/proyectos/project-colors";
-import { cn } from "@/lib/utils";
 import type { MarketingAvatarWithIdeas } from "@/types/db";
-
-function AvatarSelector({
-  avatars,
-  activeId,
-  onSelect,
-}: {
-  avatars: MarketingAvatarWithIdeas[];
-  activeId: string | undefined;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <nav
-      aria-label="Seleccionar avatar"
-      className="flex gap-2 overflow-x-auto pb-1 md:w-40 md:shrink-0 md:flex-col md:overflow-visible md:pb-0"
-    >
-      {avatars.map((avatar) => {
-        const accent = projectColorValue(avatar.color);
-        const isActive = avatar.id === activeId;
-        return (
-          <button
-            key={avatar.id}
-            type="button"
-            onClick={() => onSelect(avatar.id)}
-            aria-current={isActive ? "true" : undefined}
-            className={cn(
-              "flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-2 text-sm whitespace-nowrap transition-colors md:w-full",
-              isActive
-                ? "bg-accent font-medium text-foreground"
-                : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-            )}
-          >
-            <Avatar size="sm">
-              {avatar.photo_url ? (
-                <AvatarImage src={avatar.photo_url} alt={avatar.name} />
-              ) : null}
-              <AvatarFallback
-                className="text-[10px] font-semibold"
-                style={{ backgroundColor: `${accent}22`, color: accent }}
-              >
-                {avatar.name.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            {avatar.name}
-          </button>
-        );
-      })}
-    </nav>
-  );
-}
 
 function ChannelsPlaceholder() {
   return (
@@ -85,23 +35,62 @@ function ChannelsPlaceholder() {
   );
 }
 
+function AvatarSelect({
+  avatars,
+  active,
+  onSelect,
+}: {
+  avatars: MarketingAvatarWithIdeas[];
+  active: MarketingAvatarWithIdeas;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <nav aria-label="Seleccionar avatar" className="grid grid-cols-4 gap-2">
+      {avatars.map((avatar) => {
+        const accent = projectColorValue(avatar.color);
+        const isActive = avatar.id === active.id;
+        return (
+          <button
+            key={avatar.id}
+            type="button"
+            onClick={() => onSelect(avatar.id)}
+            aria-current={isActive ? "true" : undefined}
+            className="group flex min-w-0 flex-col items-center gap-1.5 rounded-lg p-1.5 text-center outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Avatar
+              className="size-12 border-2 transition-transform group-hover:scale-105"
+              style={{ borderColor: isActive ? accent : "transparent" }}
+            >
+              {avatar.photo_url ? (
+                <AvatarImage src={avatar.photo_url} alt={avatar.name} />
+              ) : null}
+              <AvatarFallback
+                className="font-semibold"
+                style={{ backgroundColor: `${accent}22`, color: accent }}
+              >
+                {avatar.name.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <span
+              className="max-w-full truncate text-[11px] leading-tight"
+              style={{ color: isActive ? accent : undefined }}
+            >
+              {avatar.name}
+            </span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function MarketingBoard({
   avatars,
 }: {
   avatars: MarketingAvatarWithIdeas[];
 }) {
   const [activeId, setActiveId] = useState(avatars[0]?.id);
-  const [query, setQuery] = useState("");
   const active = avatars.find((a) => a.id === activeId) ?? avatars[0];
-
-  const term = query.trim().toLocaleLowerCase("es-CO");
-  const filteredIdeas = useMemo(() => {
-    if (!active) return [];
-    return active.ideas.filter((idea) => {
-      const content = `${idea.title} ${idea.notes ?? ""} ${idea.format ?? ""}`;
-      return !term || content.toLocaleLowerCase("es-CO").includes(term);
-    });
-  }, [active, term]);
 
   if (!active) return null;
 
@@ -113,46 +102,35 @@ export function MarketingBoard({
       </TabsList>
 
       <TabsContent value="avatares">
-        <div className="flex flex-col gap-5 md:flex-row md:items-start">
-          <AvatarSelector
-            avatars={avatars}
-            activeId={active.id}
-            onSelect={setActiveId}
-          />
-
-          <div className="flex flex-col gap-4 md:w-72 md:shrink-0 lg:w-80">
+        <div className="grid gap-5 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)] lg:items-start">
+          <aside className="flex min-w-0 flex-col gap-4">
+            <AvatarSelect
+              avatars={avatars}
+              active={active}
+              onSelect={setActiveId}
+            />
             <AvatarProfileCard avatar={active} />
             <PersonaDocument avatar={active} />
-          </div>
+          </aside>
 
-          <div className="min-w-0 flex-1 space-y-4">
-            <div className="relative">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar idea de contenido"
-                className="pl-9"
-              />
-            </div>
+          <section className="min-w-0 space-y-4">
+            <AvatarInsightsPanel
+              avatarId={active.id}
+              observations={active.observations}
+            />
             <ContentIdeaQuickCapture avatarId={active.id} avatarName={active.name} />
-            {filteredIdeas.length ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {filteredIdeas.map((idea) => (
+            {active.ideas.length ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {active.ideas.map((idea) => (
                   <ContentIdeaCard key={idea.id} idea={idea} />
                 ))}
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-border bg-card/40 px-6 py-12 text-center text-sm text-muted-foreground">
-                {term
-                  ? "No hay ideas que coincidan con esta busqueda."
-                  : `Sin ideas de contenido para ${active.name} todavia. Captura la primera arriba.`}
+                {`Sin ideas de contenido para ${active.name} todavia. Captura la primera arriba.`}
               </div>
             )}
-          </div>
+          </section>
         </div>
       </TabsContent>
 

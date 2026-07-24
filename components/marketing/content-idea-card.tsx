@@ -6,7 +6,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Pencil, Trash2 } from "lucide-react";
+import { Check, ListTodo, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -33,6 +33,7 @@ import {
 } from "@/components/marketing/marketing-constants";
 import {
   deleteContentIdeaAction,
+  createTaskAction,
   setContentIdeaStatusAction,
   updateContentIdeaAction,
 } from "@/lib/db/actions";
@@ -111,13 +112,35 @@ export function ContentIdeaCard({ idea }: { idea: MarketingContentIdea }) {
     });
   }
 
+  function sendToTasks() {
+    startTransition(async () => {
+      try {
+        const task = await createTaskAction({
+          title: idea.title,
+          notes: idea.notes?.trim() || `Idea de contenido${idea.format ? `: ${idea.format}` : ""}.`,
+          status: "todo",
+        });
+        await updateContentIdeaAction(idea.id, {
+          task_id: task.id,
+          status: "en_proceso",
+        });
+        toast.success("Idea enviada a tareas");
+        router.refresh();
+      } catch (error) {
+        toast.error("No se pudo crear la tarea", {
+          description: error instanceof Error ? error.message : "Intenta de nuevo.",
+        });
+      }
+    });
+  }
+
   return (
     <>
-      <Card className="h-full gap-3">
-        <CardHeader>
+      <Card className="h-full gap-2">
+        <CardHeader className="p-3 pb-0">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <h3 className="font-heading text-base font-medium leading-snug">
+              <h3 className="font-heading text-sm font-medium leading-snug">
                 {idea.title}
               </h3>
               {capturada ? (
@@ -133,14 +156,14 @@ export function ContentIdeaCard({ idea }: { idea: MarketingContentIdea }) {
         </CardHeader>
 
         {idea.notes?.trim() ? (
-          <CardContent>
-            <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+          <CardContent className="px-3 py-0">
+            <p className="line-clamp-3 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
               {idea.notes}
             </p>
           </CardContent>
         ) : null}
 
-        <CardFooter className="mt-auto flex flex-wrap items-center gap-2">
+        <CardFooter className="mt-auto flex flex-wrap items-center gap-2 p-3 pt-0">
           <Select
             value={idea.status}
             onValueChange={(v) => changeStatus(v as MarketingContentStatus)}
@@ -160,6 +183,17 @@ export function ContentIdeaCard({ idea }: { idea: MarketingContentIdea }) {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            type="button"
+            variant={idea.task_id ? "secondary" : "outline"}
+            size="sm"
+            onClick={sendToTasks}
+            disabled={pending || Boolean(idea.task_id)}
+            aria-label={idea.task_id ? "Idea ya enviada a tareas" : "Enviar idea a tareas"}
+          >
+            {idea.task_id ? <Check /> : <ListTodo />}
+            {idea.task_id ? "En tareas" : "A tareas"}
+          </Button>
           <div className="ml-auto flex items-center gap-1">
             <Button
               type="button"

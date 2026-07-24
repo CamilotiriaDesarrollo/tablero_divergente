@@ -1,177 +1,113 @@
-"use client";
 // components/marketing/avatar-profile-card.tsx
-// Perfil de un avatar (buyer persona): foto, nombre, titular y descripcion, con
-// edicion en dialogo. El avatar es fijo (los 4 vienen sembrados); aqui solo se
-// desarrolla su perfil. Boton "Editar perfil" produce el aviso "Perfil actualizado".
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+// Resumen visual de la ficha de cada avatar y sus canales relevantes.
 import Image from "next/image";
-import { toast } from "sonner";
-import { Pencil, User } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { User } from "lucide-react";
+import { ChannelMark } from "@/components/marketing/channel-mark";
 import { projectColorValue } from "@/components/proyectos/project-colors";
-import { updateAvatarAction } from "@/lib/db/actions";
-import type { MarketingAvatar } from "@/types/db";
+import type { MarketingAvatar, PersonaBlock } from "@/types/db";
 
-const NOTE_LIMIT = 8000;
+const CHANNELS = [
+  { name: "LinkedIn", slug: "linkedin", color: "0A66C2", match: /linkedin/i },
+  { name: "Instagram", slug: "instagram", color: "E4405F", match: /instagram/i },
+  { name: "YouTube", slug: "youtube", color: "FF0000", match: /youtube/i },
+  { name: "TikTok", slug: "tiktok", color: "000000", match: /tiktok/i },
+  { name: "WhatsApp", slug: "whatsapp", color: "25D366", match: /whatsapp/i },
+  { name: "X", slug: "x", color: "000000", match: /(?:twitter|canal x|red x|\bx\s*\/\s*twitter)/i },
+  { name: "Podcast", slug: "spotify", color: "1DB954", match: /podcast/i },
+];
+
+const FEATURED_CHANNELS: Record<string, string[]> = {
+  mateo: ["YouTube"],
+  diana: ["LinkedIn", "YouTube"],
+  juan: ["YouTube"],
+  laura: ["Instagram", "TikTok"],
+};
+
+const PROFILE_WORDS: Record<string, string> = {
+  mateo: "Coordinador",
+  diana: "Corporativa",
+  juan: "Independiente",
+  laura: "Emprendedora",
+};
+
+function blockText(block: PersonaBlock): string {
+  switch (block.type) {
+    case "text":
+    case "quote":
+      return `${block.label ?? ""} ${block.body}`;
+    case "list":
+      return `${block.label ?? ""} ${block.body ?? ""} ${block.items.join(" ")}`;
+    case "table":
+      return `${block.label ?? ""} ${block.headers.join(" ")} ${block.rows.flat().join(" ")}`;
+    case "grid":
+      return `${block.label ?? ""} ${block.columns
+        .map((column) => `${column.label} ${column.body ?? ""} ${(column.items ?? []).join(" ")}`)
+        .join(" ")}`;
+  }
+}
 
 export function AvatarProfileCard({ avatar }: { avatar: MarketingAvatar }) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const [headline, setHeadline] = useState(avatar.headline ?? "");
-  const [description, setDescription] = useState(avatar.description ?? "");
   const accent = projectColorValue(avatar.color);
-
-  function saveProfile(event: React.FormEvent) {
-    event.preventDefault();
-    startTransition(async () => {
-      try {
-        await updateAvatarAction(avatar.id, {
-          headline: headline.trim() || null,
-          description: description.trim() || null,
-        });
-        toast.success("Perfil actualizado");
-        setOpen(false);
-        router.refresh();
-      } catch (error) {
-        toast.error("No se pudo actualizar el perfil", {
-          description:
-            error instanceof Error ? error.message : "Intenta de nuevo.",
-        });
-      }
-    });
-  }
+  const sections = avatar.persona_sections ?? [];
+  const source = sections
+    .flatMap((section) => section.blocks)
+    .map(blockText)
+    .join(" ");
+  const channels = CHANNELS.filter((channel) => channel.match.test(source));
+  const featuredNames = FEATURED_CHANNELS[avatar.slug] ?? [];
+  const featuredChannels = CHANNELS.filter((channel) =>
+    featuredNames.includes(channel.name),
+  );
+  const displayChannels = featuredChannels.length ? featuredChannels : channels.slice(0, 1);
+  const profileWord = PROFILE_WORDS[avatar.slug];
 
   return (
-    <>
-      <section
-        aria-label={`Perfil de ${avatar.name}`}
-        className="rounded-xl border-t-4 bg-card p-4 ring-1 ring-foreground/10"
-        style={{ borderTopColor: accent }}
+    <section
+      aria-label={`Perfil de ${avatar.name}`}
+      className="overflow-hidden rounded-xl border-t-4 bg-card ring-1 ring-foreground/10"
+      style={{ borderTopColor: accent }}
+    >
+      <div
+        className="relative aspect-[4/3] overflow-hidden border-b border-border"
+        style={{ backgroundColor: `${accent}12` }}
       >
-        <div className="flex items-start gap-3">
-          <div
-            className="relative size-14 shrink-0 overflow-hidden rounded-lg"
-            style={{ backgroundColor: `${accent}14` }}
-          >
-            {avatar.photo_url ? (
-              <Image
-                src={avatar.photo_url}
-                alt={avatar.name}
-                fill
-                sizes="56px"
-                className="object-contain"
-              />
-            ) : (
-              <div className="flex size-full items-center justify-center">
-                <User className="size-6" style={{ color: accent }} />
-              </div>
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="font-heading text-base font-semibold leading-snug">
-              {avatar.name}
-            </h2>
-            {avatar.headline?.trim() ? (
-              <p className="text-xs text-muted-foreground">{avatar.headline}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Sin titular todavia.
-              </p>
-            )}
-          </div>
-        </div>
-        {avatar.description?.trim() ? (
-          <p className="mt-3 line-clamp-6 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
-            {avatar.description}
-          </p>
+        {avatar.photo_url ? (
+          <Image
+            src={avatar.photo_url}
+            alt={avatar.name}
+            fill
+            priority
+            sizes="(min-width: 1024px) 32vw, 100vw"
+            className="object-contain p-4"
+          />
         ) : (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Aqui va la descripcion del avatar: contexto, dolores, deseos y
-            como le habla la marca.
-          </p>
+          <div className="flex size-full items-center justify-center">
+            <User className="size-14" style={{ color: accent }} />
+          </div>
         )}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setOpen(true)}
-          className="mt-3 w-full"
-        >
-          <Pencil />
-          Editar perfil
-        </Button>
-      </section>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Editar perfil de {avatar.name}</DialogTitle>
-            <DialogDescription>
-              El perfil guia las ideas de contenido de este avatar.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={saveProfile} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor={`avatar-headline-${avatar.id}`}>Titular</Label>
-              <Input
-                id={`avatar-headline-${avatar.id}`}
-                value={headline}
-                onChange={(event) => setHeadline(event.target.value)}
-                placeholder="Quien es, en una linea"
-                maxLength={200}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor={`avatar-description-${avatar.id}`}>
-                  Descripcion
-                </Label>
-                <span className="font-mono text-xs text-muted-foreground">
-                  {description.length.toLocaleString("es-CO")} /{" "}
-                  {NOTE_LIMIT.toLocaleString("es-CO")}
-                </span>
-              </div>
-              <Textarea
-                id={`avatar-description-${avatar.id}`}
-                value={description}
-                onChange={(event) =>
-                  setDescription(event.target.value.slice(0, NOTE_LIMIT))
-                }
-                placeholder="Contexto, dolores, deseos, objeciones y tono con el que se le habla..."
-                rows={10}
-                maxLength={NOTE_LIMIT}
-                className="resize-y"
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-                disabled={pending}
+        {profileWord ? (
+          <span className="absolute inset-0 grid place-items-center text-lg font-semibold text-white drop-shadow-md">
+            {profileWord}
+          </span>
+        ) : null}
+        {displayChannels.length ? (
+          <div className="absolute right-3 bottom-3 flex items-center gap-1.5">
+            {displayChannels.map((channel) => (
+              <span
+                key={channel.name}
+                className="grid size-10 place-items-center rounded-lg bg-background/95 shadow-sm ring-1 ring-foreground/10"
               >
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={pending}>
-                {pending ? "Guardando..." : "Guardar cambios"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+                <ChannelMark
+                  name={channel.name}
+                  slug={channel.slug}
+                  color={channel.color}
+                />
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }
 

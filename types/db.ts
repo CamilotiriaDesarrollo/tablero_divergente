@@ -36,6 +36,12 @@ export const PRIORITIES: Priority[] = ["alta", "media", "baja"];
 // Una idea de contenido nace como 'idea', pasa a 'en_proceso' y termina
 // 'publicado'. No hay reordenamiento automatico: el estado es senal, no decision.
 export type MarketingContentStatus = "idea" | "en_proceso" | "publicado";
+export type MarketingObservationKind = "nota" | "hipotesis" | "evidencia";
+export type MarketingObservationStatus =
+  | "en_observacion"
+  | "por_validar"
+  | "confirmada"
+  | "refutada";
 // Bloques de la ficha completa de un avatar (buyer persona extenso, transcrito
 // 1:1 desde el documento fuente). "grid" = 2-3 columnas lado a lado con su
 // propio encabezado cada una (se apilan en pantallas angostas).
@@ -370,6 +376,7 @@ export interface Database {
           id: string;
           user_id: string;
           avatar_id: string;
+          task_id: string | null;
           title: string;
           notes: string | null;
           format: string | null;
@@ -382,6 +389,7 @@ export interface Database {
           id?: string;
           user_id?: string;
           avatar_id: string;
+          task_id?: string | null;
           title: string;
           notes?: string | null;
           format?: string | null;
@@ -394,6 +402,7 @@ export interface Database {
           id?: string;
           user_id?: string;
           avatar_id?: string;
+          task_id?: string | null;
           title?: string;
           notes?: string | null;
           format?: string | null;
@@ -405,6 +414,55 @@ export interface Database {
         Relationships: [
           {
             foreignKeyName: "marketing_content_ideas_avatar_id_fkey";
+            columns: ["avatar_id"];
+            referencedRelation: "marketing_avatars";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "marketing_content_ideas_task_id_fkey";
+            columns: ["task_id"];
+            referencedRelation: "tasks";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      marketing_avatar_observations: {
+        Row: {
+          id: string;
+          user_id: string;
+          avatar_id: string;
+          kind: MarketingObservationKind;
+          title: string;
+          content: string | null;
+          status: MarketingObservationStatus;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          avatar_id: string;
+          kind?: MarketingObservationKind;
+          title: string;
+          content?: string | null;
+          status?: MarketingObservationStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          avatar_id?: string;
+          kind?: MarketingObservationKind;
+          title?: string;
+          content?: string | null;
+          status?: MarketingObservationStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "marketing_avatar_observations_avatar_id_fkey";
             columns: ["avatar_id"];
             referencedRelation: "marketing_avatars";
             referencedColumns: ["id"];
@@ -480,8 +538,15 @@ export type MarketingContentIdeaInsert =
   Database["public"]["Tables"]["marketing_content_ideas"]["Insert"];
 export type MarketingContentIdeaUpdate =
   Database["public"]["Tables"]["marketing_content_ideas"]["Update"];
+export type MarketingAvatarObservation =
+  Database["public"]["Tables"]["marketing_avatar_observations"]["Row"];
+export type MarketingAvatarObservationInsert =
+  Database["public"]["Tables"]["marketing_avatar_observations"]["Insert"];
+export type MarketingAvatarObservationUpdate =
+  Database["public"]["Tables"]["marketing_avatar_observations"]["Update"];
 
 // Avatar con sus ideas de contenido ya agrupadas (uso en la vista de Marketing).
 export type MarketingAvatarWithIdeas = MarketingAvatar & {
   ideas: MarketingContentIdea[];
+  observations: MarketingAvatarObservation[];
 };

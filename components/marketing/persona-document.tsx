@@ -1,101 +1,91 @@
 "use client";
 // components/marketing/persona-document.tsx
-// Ficha completa de un avatar (buyer persona extenso, 6 a 10 secciones), en
-// una columna angosta. Dos niveles: una fila resumen colapsada por defecto
-// ("Ver ficha completa") y, al expandirla, un acordeon con una seccion por
-// tema. Si el avatar no tiene ficha (persona_sections vacio), no renderiza nada.
+// La ficha completa mantiene sus titulos siempre visibles; cada detalle se
+// abre desde su propio acordeon para consultar solo lo necesario.
 import { useState } from "react";
-import {
-  ChevronDown,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  ChevronUp,
-  FileText,
-} from "lucide-react";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Button } from "@/components/ui/button";
 import { PersonaBlockView } from "@/components/marketing/persona-blocks";
 import { projectColorValue } from "@/components/proyectos/project-colors";
-import type { MarketingAvatar } from "@/types/db";
+import type { MarketingAvatar, PersonaBlock, PersonaSection } from "@/types/db";
+
+const PERSONA_NAMES: Record<string, { selected: string; alternate: string }> = {
+  mateo: { selected: "Mateo", alternate: "Mariana" },
+  diana: { selected: "Diana", alternate: "Jaime" },
+  juan: { selected: "Juan", alternate: "Valentina" },
+  laura: { selected: "Laura", alternate: "Andr\\u00e9s" },
+};
+
+function personalizeText(text: string, avatar: MarketingAvatar) {
+  const names = PERSONA_NAMES[avatar.slug];
+  if (!names) return text;
+  const selected = names.selected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const alternate = names.alternate;
+  const pair = new RegExp(
+    `\\b(?:${selected}|${alternate})\\s*(?:o|y|/)\\s*(?:${selected}|${alternate})\\b`,
+    "gi",
+  );
+  const alternateOnly = new RegExp(`\\b${alternate}\\b`, "gi");
+  return text.replace(pair, names.selected).replace(alternateOnly, names.selected);
+}
+
+function personalizeBlock(block: PersonaBlock, avatar: MarketingAvatar): PersonaBlock {
+  const label = block.label ? personalizeText(block.label, avatar) : undefined;
+  switch (block.type) {
+    case "text":
+    case "quote":
+      return { ...block, label, body: personalizeText(block.body, avatar) };
+    case "list":
+      return {
+        ...block,
+        label,
+        body: block.body ? personalizeText(block.body, avatar) : undefined,
+        items: block.items.map((item) => personalizeText(item, avatar)),
+      };
+    case "table":
+      return {
+        ...block,
+        label,
+        headers: block.headers.map((header) => personalizeText(header, avatar)),
+        rows: block.rows.map((row) => row.map((cell) => personalizeText(cell, avatar))),
+      };
+    case "grid":
+      return {
+        ...block,
+        label,
+        columns: block.columns.map((column) => ({
+          ...column,
+          label: personalizeText(column.label, avatar),
+          body: column.body ? personalizeText(column.body, avatar) : undefined,
+          items: column.items?.map((item) => personalizeText(item, avatar)),
+        })),
+      };
+  }
+}
+
+function personalizeSections(
+  sections: PersonaSection[],
+  avatar: MarketingAvatar,
+): PersonaSection[] {
+  return sections.map((section) => ({
+    title: personalizeText(section.title, avatar),
+    blocks: section.blocks.map((block) => personalizeBlock(block, avatar)),
+  }));
+}
 
 export function PersonaDocument({ avatar }: { avatar: MarketingAvatar }) {
-  const sections = avatar.persona_sections ?? [];
-  const [open, setOpen] = useState(false);
-  const [openIds, setOpenIds] = useState<string[]>(sections.length ? ["0"] : []);
+  const sections = personalizeSections(avatar.persona_sections ?? [], avatar);
+  const [openIds, setOpenIds] = useState<string[]>([]);
   const accent = projectColorValue(avatar.color);
-  const allOpen = openIds.length === sections.length;
 
   if (!sections.length) return null;
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-between gap-3 rounded-xl border border-dashed border-border px-4 py-3.5 text-left transition-colors hover:border-foreground/20"
-      >
-        <span className="flex min-w-0 items-center gap-2">
-          <FileText className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0">
-            <span className="font-heading text-sm font-medium">
-              Ficha completa de {avatar.name}
-            </span>
-            <span className="ml-1.5 text-xs text-muted-foreground">
-              · {sections.length} secciones
-            </span>
-          </span>
-        </span>
-        <span className="flex shrink-0 items-center gap-1 rounded-md border border-input px-2.5 py-1 text-xs font-medium text-foreground">
-          Ver ficha
-          <ChevronDown className="size-3.5" />
-        </span>
-      </button>
-    );
-  }
-
   return (
     <div className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <span className="flex min-w-0 items-center gap-2">
-          <FileText className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0">
-            <span className="font-heading text-sm font-medium">
-              Ficha completa de {avatar.name}
-            </span>
-            <span className="ml-1.5 text-xs text-muted-foreground">
-              · {sections.length} secciones
-            </span>
-          </span>
-        </span>
-        <span className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            aria-label={allOpen ? "Colapsar todo" : "Expandir todo"}
-            onClick={() =>
-              setOpenIds(allOpen ? [] : sections.map((_, i) => String(i)))
-            }
-          >
-            {allOpen ? <ChevronsDownUp /> : <ChevronsUpDown />}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Cerrar ficha completa"
-            onClick={() => setOpen(false)}
-          >
-            <ChevronUp />
-          </Button>
-        </span>
-      </div>
-
       <Accordion
         multiple
         value={openIds}
@@ -105,7 +95,7 @@ export function PersonaDocument({ avatar }: { avatar: MarketingAvatar }) {
         {sections.map((section, index) => (
           <AccordionItem key={section.title} value={String(index)}>
             <AccordionTrigger>
-              <span className="flex items-start gap-2.5">
+              <span className="flex items-start gap-2.5 text-left">
                 <span
                   aria-hidden="true"
                   className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md font-mono text-[10px] font-semibold"
