@@ -7,7 +7,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { isSupabaseConfigured } from "@/lib/config";
+import { isSupabaseConfigured, MARKETING_ENABLED } from "@/lib/config";
 import { isEchoOfLocalMutation } from "@/lib/realtime/echo-guard";
 
 export function RealtimeRefresher({ userId }: { userId: string }) {
@@ -27,59 +27,28 @@ export function RealtimeRefresher({ userId }: { userId: string }) {
       timeout.current = setTimeout(() => router.refresh(), 300);
     };
 
-    const channel = supabase
-      .channel("tablero-realtime")
-      .on(
+    const tables = [
+      "tasks",
+      "projects",
+      ...(MARKETING_ENABLED
+        ? ["marketing_avatars", "marketing_content_ideas", "marketing_planner_items"]
+        : []),
+    ];
+
+    let channel = supabase.channel("tablero-realtime");
+    for (const table of tables) {
+      channel = channel.on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
-          table: "tasks",
+          table,
           filter: `user_id=eq.${userId}`,
         },
         scheduleRefresh,
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "projects",
-          filter: `user_id=eq.${userId}`,
-        },
-        scheduleRefresh,
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "marketing_avatars",
-          filter: `user_id=eq.${userId}`,
-        },
-        scheduleRefresh,
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "marketing_content_ideas",
-          filter: `user_id=eq.${userId}`,
-        },
-        scheduleRefresh,
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "marketing_planner_items",
-          filter: `user_id=eq.${userId}`,
-        },
-        scheduleRefresh,
-      )
-      .subscribe();
+      );
+    }
+    channel.subscribe();
 
     return () => {
       if (timeout.current) clearTimeout(timeout.current);

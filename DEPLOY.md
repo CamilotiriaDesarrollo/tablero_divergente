@@ -83,11 +83,12 @@ registrarse ni crear usuarios en Supabase.
 3. Abre la app: entra directo a Inicio, sin pantalla de acceso.
 
 > ⚠️ **Seguridad al desplegar en público.** Sin login, cualquiera con la URL opera
-> como tú, y con RLS desactivada la anon key puede leer/escribir tu base directamente.
-> **En localhost no hay exposición.** Antes de publicar en una URL de internet,
-> antepón una barrera: por ejemplo Vercel *Deployment Protection* (password), o un
-> gateo simple por contraseña en un middleware. Pídelo y lo agrego. El **bot** de
-> Telegram NO se ve afectado: tiene su propia allowlist.
+> como tú. **En localhost no hay exposición.** Antes de publicar en una URL de
+> internet, configura `SITE_USER` y `SITE_PASSWORD` en Vercel: `middleware.ts`
+> (raíz) exige HTTP Basic Auth con esas credenciales antes de servir cualquier
+> página. Si las dejas vacías, no hay barrera. El **bot** de Telegram NO se ve
+> afectado: tiene su propia allowlist y su ruta (`/api/telegram`) está excluida
+> del middleware a propósito (Telegram no puede resolver un prompt de Basic Auth).
 
 ---
 
@@ -157,7 +158,39 @@ herramientas de borrado, tope diario `BOT_DAILY_LIMIT` y comando `/pausa`.
 
 ---
 
-## 8. Comandos locales
+## 8. Clonar la app para otro dueño (usuario 002, 003...)
+
+Mismo código, otro dueño: otro proyecto Supabase (base 100% independiente) y otro
+proyecto Vercel, ambos apuntando al mismo repo de GitHub. Un `git push` a `main`
+redespliega todos los clones a la vez; solo cambian las variables de entorno.
+
+1. **Supabase nuevo.** Crea un proyecto Supabase aparte para este dueño (sección
+   1 de esta guía). Aplica **todas** las migraciones de `supabase/migrations/` en
+   orden (sección 2, CLI o Editor SQL) — incluidas las de marketing, aunque este
+   clon no las use: quedan vacías y no rompen nada, y así hay un solo checklist
+   de migraciones para todos los clones. **No** corras `supabase/seed.sql` (trae
+   datos del dueño original); el clon arranca vacío.
+2. **uuid del nuevo dueño.** Define un `OWNER_USER_ID` propio, siguiendo el mismo
+   patrón (ej. `00000000-0000-4000-8000-000000000002` para el segundo).
+3. **Proyecto Vercel nuevo.** *New Project* → importa el mismo repo de GitHub de
+   nuevo, como proyecto separado. Variables de entorno propias (sección 3 de esta
+   guía) apuntando al Supabase del paso 1 de arriba, más:
+   - `OWNER_USER_ID` del paso 2.
+   - `NEXT_PUBLIC_APP_NAME` con el nombre de este dueño.
+   - `NEXT_PUBLIC_ENABLE_MARKETING=false` si este clon no necesita el módulo
+     Marketing (oculta el ítem del menú y bloquea `/marketing` y su API con 404).
+   - `SITE_USER` / `SITE_PASSWORD` propios de este clon (ver aviso de seguridad
+     arriba) — nunca reutilices la misma contraseña entre clones.
+4. **Deploy y prueba de humo** (sección 5 de esta guía, sin los ítems de
+   Marketing si lo apagaste). Confirma que un cambio en este clon no aparece en
+   el tablero del otro dueño y viceversa.
+5. **A futuro:** el código se sincroniza solo. El esquema **no** — cada
+   migración nueva se aplica a mano en el proyecto Supabase de CADA clon activo
+   antes de dar la fase por cerrada.
+
+---
+
+## 9. Comandos locales
 
 ```bash
 npm run dev                      # desarrollo en http://localhost:3000

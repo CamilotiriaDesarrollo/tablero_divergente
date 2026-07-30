@@ -28,10 +28,23 @@ App personal de gestión (proyectos, tareas, ideas, calendario) de un solo dueñ
 
 ## Seguridad (obligatorio)
 
-- **Modo dueño único (sin login).** La app no tiene autenticación: siempre opera como el dueño fijo `OWNER_USER_ID` (`lib/owner.ts`). RLS desactivada (migración `0004`), la anon key opera sin sesión. Toda fila lleva ese `user_id` y `lib/db` filtra por él. **En local es seguro; una URL pública queda ABIERTA** — anteponer una barrera antes de desplegar (ver DEPLOY.md). El bot mantiene su propia seguridad (allowlist de Telegram), independiente de esto.
+- **Modo dueño único (sin login).** La app no tiene autenticación: siempre opera como el dueño fijo `OWNER_USER_ID` (`lib/owner.ts`). RLS activa con política permisiva para `anon`/`authenticated` (ver nota abajo), la anon key opera sin sesión. Toda fila lleva ese `user_id` y `lib/db` filtra por él. El bot mantiene su propia seguridad (allowlist de Telegram), independiente de esto.
+- **RLS: activa siempre, nunca "disable row level security".** En este proyecto Supabase el Security Advisor puede re-activar RLS por fuera de las migraciones (ya pasó una vez y rompió la lectura en producción). El patrón correcto, usado desde `0005_phases.sql` en adelante, es dejar RLS **encendida** con una política `for all to anon, authenticated using (true) with check (true)`. Nunca vuelvas a usar `disable row level security` en una migración nueva.
+- **Barrera de acceso en despliegues públicos.** Sin login, cualquiera con la URL opera como el dueño. `middleware.ts` (raíz) exige HTTP Basic Auth cuando `SITE_PASSWORD` está configurada; si está vacía (local), no hay barrera. Todo despliegue público debe tener `SITE_USER`/`SITE_PASSWORD` propios en Vercel.
 - `SUPABASE_SERVICE_ROLE_KEY` (solo el bot) y `ANTHROPIC_API_KEY` viven solo en el server. Nunca llegan al cliente ni a un `NEXT_PUBLIC_*`.
 - El endpoint `/api/ai` valida toda entrada. Rate-limit si Upstash está configurado.
 - Cero datos personales en parámetros de URL.
+
+## Clones para otros dueños (multi-instancia, un solo repo)
+
+Este repo puede desplegarse varias veces para distintos dueños (ej. "usuario 001", "usuario 002"), cada uno con su propio proyecto Supabase (base 100% independiente) y su propio proyecto Vercel, pero **compartiendo el mismo código**. Un `git push` a `main` redespliega todos los clones; lo único que cambia entre ellos son las variables de entorno:
+
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — proyecto Supabase propio de ese dueño.
+- `OWNER_USER_ID` — uuid fijo propio (ej. `...002` para el segundo dueño).
+- `NEXT_PUBLIC_ENABLE_MARKETING` — enciende/apaga el módulo Marketing por clon (`lib/config.ts` define `MARKETING_ENABLED`, filtra `lib/nav.ts` y las suscripciones de `realtime-refresher.tsx`). El bloqueo real de `/marketing` y `/api/marketing/*` con status 404 vive en `middleware.ts`, no en `notFound()` dentro de la página: un `notFound()` en un segmento anidado sin `not-found.tsx` propio no siempre setea el status HTTP a 404 en Next.js (se comprobó en pruebas locales), así que el middleware es la fuente de verdad.
+- `SITE_USER` / `SITE_PASSWORD` — contraseña propia de cada clon.
+
+**Lo que NO se sincroniza solo: el esquema de base de datos.** Cada migración nueva en `supabase/migrations/` hay que aplicarla a mano en CADA proyecto Supabase de cada clon (CLI `db push` o Editor SQL, una vez por proyecto). No dar una fase por cerrada sin haberlo hecho en todos los clones activos.
 
 ## Diseño (guardrail)
 

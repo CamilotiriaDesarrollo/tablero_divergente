@@ -1,6 +1,8 @@
 // lib/nav.ts
 // Rutas y etiquetas de navegacion. Una sola fuente para el nav lateral y la
 // barra de comando. Nombres en espanol (CLAUDE.md).
+import { MARKETING_ENABLED } from "@/lib/config";
+
 export interface NavItem {
   href: string;
   label: string;
@@ -8,7 +10,7 @@ export interface NavItem {
   description: string;
 }
 
-export const NAV_ITEMS: NavItem[] = [
+const ALL_NAV_ITEMS: NavItem[] = [
   {
     href: "/",
     label: "Inicio",
@@ -46,3 +48,7 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Vista de mes por fecha de entrega",
   },
 ];
+
+export const NAV_ITEMS: NavItem[] = MARKETING_ENABLED
+  ? ALL_NAV_ITEMS
+  : ALL_NAV_ITEMS.filter((item) => item.href !== "/marketing");

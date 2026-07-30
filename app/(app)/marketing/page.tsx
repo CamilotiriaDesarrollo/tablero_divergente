@@ -2,7 +2,9 @@
 // Seccion Marketing (RSC): avatares (buyer personas) e ideas de contenido para
 // cada uno. Los 4 avatares base vienen sembrados por la migracion 0006; si la
 // tabla aun no existe, la pagina muestra un estado vacio que invita a aplicarla.
+import { notFound } from "next/navigation";
 import { Megaphone } from "lucide-react";
+import { MARKETING_ENABLED } from "@/lib/config";
 import { getMarketingBoard, getPlannerItems } from "@/lib/db/marketing";
 import { MarketingBoard } from "@/components/marketing/marketing-board";
 
@@ -10,7 +12,13 @@ export const metadata = {
   title: "Marketing",
 };
 
+// Fuerza render por request: si se prerenderiza como estatica, notFound() se
+// hornea en el HTML de build y next start lo sirve con status 200 en vez de 404.
+export const dynamic = "force-dynamic";
+
 export default async function MarketingPage() {
+  if (!MARKETING_ENABLED) notFound();
+
   const [avatars, plannerItems] = await Promise.all([
     getMarketingBoard(),
     getPlannerItems(),

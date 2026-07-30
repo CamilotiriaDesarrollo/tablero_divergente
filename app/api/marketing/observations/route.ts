@@ -1,9 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { MARKETING_ENABLED } from "@/lib/config";
 import * as marketingDb from "@/lib/db/marketing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function notEnabled() {
+  return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+}
 
 const observationKind = z.enum(["nota", "hipotesis", "evidencia"]);
 const observationStatus = z.enum([
@@ -61,6 +66,7 @@ function errorResponse(error: unknown) {
 }
 
 export async function GET(request: NextRequest) {
+  if (!MARKETING_ENABLED) return notEnabled();
   try {
     const { avatar_id } = listSchema.parse({
       avatar_id: request.nextUrl.searchParams.get("avatar_id") || undefined,
@@ -75,6 +81,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!MARKETING_ENABLED) return notEnabled();
   try {
     const input = createSchema.parse(await request.json());
     const observation = await marketingDb.createAvatarObservation(input);
@@ -85,6 +92,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  if (!MARKETING_ENABLED) return notEnabled();
   try {
     const { id, ...patch } = updateSchema.parse(await request.json());
     const observation = await marketingDb.updateAvatarObservation(id, patch);
@@ -95,6 +103,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!MARKETING_ENABLED) return notEnabled();
   try {
     const { id } = deleteSchema.parse(await request.json());
     await marketingDb.deleteAvatarObservation(id);
