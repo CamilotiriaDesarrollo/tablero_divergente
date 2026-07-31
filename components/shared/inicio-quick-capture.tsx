@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { VoiceRecordingPanel } from "@/components/shared/voice-recording-panel";
 import { useVoiceTranscription } from "@/components/shared/use-voice-transcription";
+import { IA_ENABLED } from "@/lib/config";
 import { createTaskAction } from "@/lib/db/actions";
 import { markLocalMutation } from "@/lib/realtime/echo-guard";
 import { toDateColumn } from "@/lib/utils/dates";
@@ -97,31 +98,35 @@ export function InicioQuickCapture({ projects }: { projects: ProjectOption[] }) 
           onChange={handleAudioFile}
         />
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant={voice.recording ? "default" : "outline"}
-            onClick={voice.recording ? voice.stopRecording : voice.startRecording}
-            disabled={pending || voice.transcribing}
-            className={
-              voice.recording
-                ? "bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500"
-                : undefined
-            }
-          >
-            {voice.recording ? <CircleCheck /> : <Mic />}
-            {voice.recording ? "Terminar y transcribir" : "Grabar tarea"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => document.getElementById("inicio-audio-file")?.click()}
-            disabled={pending || voice.recording || voice.transcribing}
-            aria-label="Subir audio de tarea"
-            title="Subir audio"
-          >
-            {voice.transcribing ? <LoaderCircle className="animate-spin" /> : <FileAudio />}
-          </Button>
+          {IA_ENABLED ? (
+            <>
+              <Button
+                type="button"
+                variant={voice.recording ? "default" : "outline"}
+                onClick={voice.recording ? voice.stopRecording : voice.startRecording}
+                disabled={pending || voice.transcribing}
+                className={
+                  voice.recording
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500"
+                    : undefined
+                }
+              >
+                {voice.recording ? <CircleCheck /> : <Mic />}
+                {voice.recording ? "Terminar y transcribir" : "Grabar tarea"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => document.getElementById("inicio-audio-file")?.click()}
+                disabled={pending || voice.recording || voice.transcribing}
+                aria-label="Subir audio de tarea"
+                title="Subir audio"
+              >
+                {voice.transcribing ? <LoaderCircle className="animate-spin" /> : <FileAudio />}
+              </Button>
+            </>
+          ) : null}
           <Button
             type="submit"
             size="icon"
@@ -179,7 +184,7 @@ export function InicioQuickCapture({ projects }: { projects: ProjectOption[] }) 
         </div>
       </div>
 
-      {voice.recording || voice.transcribing ? (
+      {IA_ENABLED && (voice.recording || voice.transcribing) ? (
         <VoiceRecordingPanel
           stream={voice.audioStream}
           recording={voice.recording}

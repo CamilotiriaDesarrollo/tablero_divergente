@@ -179,8 +179,23 @@ redespliega todos los clones a la vez; solo cambian las variables de entorno.
    - `NEXT_PUBLIC_APP_NAME` con el nombre de este dueño.
    - `NEXT_PUBLIC_ENABLE_MARKETING=false` si este clon no necesita el módulo
      Marketing (oculta el ítem del menú y bloquea `/marketing` y su API con 404).
+   - `NEXT_PUBLIC_ENABLE_IA=false` si este clon no lleva llaves de IA. Oculta el
+     botón Asistente, su entrada en la barra de comando y el micrófono/subir-audio
+     de las capturas rápidas, y bloquea `/api/ai` y `/api/transcribe` con 404. Sin
+     esto quedan botones que fallan al tocarlos. Con la IA apagada **no** cargues
+     `ANTHROPIC_API_KEY` ni `GROQ_API_KEY`: así ese clon no genera ningún gasto.
    - `SITE_USER` / `SITE_PASSWORD` propios de este clon (ver aviso de seguridad
      arriba) — nunca reutilices la misma contraseña entre clones.
+
+   **Variante: compartir un mismo proyecto Supabase entre clones.** En vez del
+   paso 1, los clones pueden apuntar a la MISMA base (misma url y misma anon key)
+   y distinguirse solo por su `OWNER_USER_ID`. Ventaja: las migraciones se aplican
+   una sola vez. Coste: el aislamiento lo da únicamente el filtro `user_id` de
+   `lib/db`, no la base — la RLS es permisiva y la anon key es pública y
+   compartida, así que un dueño con conocimientos técnicos podría leer los datos
+   del otro consultando PostgREST directamente. Solo entre personas de confianza
+   mutua. En ese caso no apliques migraciones nuevas (ya están) ni `seed.sql`, y
+   verifica que cada clon tenga un `OWNER_USER_ID` distinto y no vacío.
 4. **Deploy y prueba de humo** (sección 5 de esta guía, sin los ítems de
    Marketing si lo apagaste). Confirma que un cambio en este clon no aparece en
    el tablero del otro dueño y viceversa.

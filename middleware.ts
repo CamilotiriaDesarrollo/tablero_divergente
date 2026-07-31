@@ -37,13 +37,26 @@ export function middleware(request: NextRequest) {
     if (!authorized) return unauthorized();
   }
 
+  const { pathname } = request.nextUrl;
+
   const marketingEnabled = process.env.NEXT_PUBLIC_ENABLE_MARKETING !== "false";
   if (!marketingEnabled) {
-    const { pathname } = request.nextUrl;
     if (pathname === "/marketing" || pathname.startsWith("/marketing/")) {
       return notFound();
     }
     if (pathname === "/api/marketing" || pathname.startsWith("/api/marketing/")) {
+      return notFound();
+    }
+  }
+
+  // Clon sin llaves de IA: el asistente y la transcripcion de voz no existen.
+  // Se apagan aqui, no solo en la interfaz, para que nadie los invoque a mano.
+  const iaEnabled = process.env.NEXT_PUBLIC_ENABLE_IA !== "false";
+  if (!iaEnabled) {
+    if (pathname === "/api/ai" || pathname.startsWith("/api/ai/")) {
+      return notFound();
+    }
+    if (pathname === "/api/transcribe" || pathname.startsWith("/api/transcribe/")) {
       return notFound();
     }
   }

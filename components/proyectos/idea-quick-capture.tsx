@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceRecordingPanel } from "@/components/shared/voice-recording-panel";
 import { useVoiceTranscription } from "@/components/shared/use-voice-transcription";
+import { IA_ENABLED } from "@/lib/config";
 import { createProjectAction } from "@/lib/db/actions";
 
 const NOTE_LIMIT = 8000;
@@ -191,7 +192,7 @@ export function IdeaQuickCapture() {
           </span>
         </div>
       </div>
-      {voice.recording || voice.transcribing ? (
+      {IA_ENABLED && (voice.recording || voice.transcribing) ? (
         <VoiceRecordingPanel
           stream={voice.audioStream}
           recording={voice.recording}
@@ -211,31 +212,35 @@ export function IdeaQuickCapture() {
             className="sr-only"
             onChange={handleAudioFile}
           />
-          <Button
-            type="button"
-            variant={voice.recording ? "default" : "outline"}
-            size={voice.recording ? "default" : "sm"}
-            onClick={voice.recording ? voice.stopRecording : voice.startRecording}
-            disabled={voice.transcribing}
-            className={
-              voice.recording
-                ? "bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500"
-                : undefined
-            }
-          >
-            {voice.recording ? <CircleCheck /> : <Mic />}
-            {voice.recording ? "Terminar y transcribir" : "Grabar nota"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => document.getElementById("idea-audio-file")?.click()}
-            disabled={voice.recording || voice.transcribing}
-          >
-            {voice.transcribing ? <LoaderCircle className="animate-spin" /> : <FileAudio />}
-            {voice.transcribing ? "Transcribiendo..." : "Subir audio"}
-          </Button>
+          {IA_ENABLED ? (
+            <>
+              <Button
+                type="button"
+                variant={voice.recording ? "default" : "outline"}
+                size={voice.recording ? "default" : "sm"}
+                onClick={voice.recording ? voice.stopRecording : voice.startRecording}
+                disabled={voice.transcribing}
+                className={
+                  voice.recording
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500"
+                    : undefined
+                }
+              >
+                {voice.recording ? <CircleCheck /> : <Mic />}
+                {voice.recording ? "Terminar y transcribir" : "Grabar nota"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => document.getElementById("idea-audio-file")?.click()}
+                disabled={voice.recording || voice.transcribing}
+              >
+                {voice.transcribing ? <LoaderCircle className="animate-spin" /> : <FileAudio />}
+                {voice.transcribing ? "Transcribiendo..." : "Subir audio"}
+              </Button>
+            </>
+          ) : null}
           <Button type="submit" disabled={pending || voice.transcribing}>
             {pending ? "Guardando..." : "Guardar idea"}
           </Button>

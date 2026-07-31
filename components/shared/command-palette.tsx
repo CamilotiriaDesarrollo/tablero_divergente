@@ -13,6 +13,7 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { NAV_ITEMS } from "@/lib/nav";
+import { IA_ENABLED } from "@/lib/config";
 
 export function CommandPalette({
   open,
@@ -40,17 +41,19 @@ export function CommandPalette({
       <CommandInput placeholder="Buscar seccion o accion..." />
       <CommandList>
         <CommandEmpty>Sin resultados.</CommandEmpty>
-        <CommandGroup heading="Asistente">
-          <CommandItem
-            onSelect={() => {
-              onOpenChange(false);
-              onOpenAssistant();
-            }}
-          >
-            <Sparkles className="size-4" />
-            <span>Abrir asistente</span>
-          </CommandItem>
-        </CommandGroup>
+        {IA_ENABLED ? (
+          <CommandGroup heading="Asistente">
+            <CommandItem
+              onSelect={() => {
+                onOpenChange(false);
+                onOpenAssistant();
+              }}
+            >
+              <Sparkles className="size-4" />
+              <span>Abrir asistente</span>
+            </CommandItem>
+          </CommandGroup>
+        ) : null}
         <CommandGroup heading="Ir a">
           {NAV_ITEMS.map((item) => {
             const Icon = navIcon(item.icon);

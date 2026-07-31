@@ -12,6 +12,7 @@ import { buildSystemPrompt } from "@/lib/ai/prompt";
 import { runAssistant } from "@/lib/ai/agent";
 import { toDateColumn } from "@/lib/utils/dates";
 import { checkRateLimit } from "@/lib/ai/rate-limit";
+import { IA_ENABLED } from "@/lib/config";
 import { OWNER_USER_ID } from "@/lib/owner";
 
 export const runtime = "nodejs";
@@ -30,6 +31,12 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // 0. Clon con la IA apagada: el asistente no existe. Defensa en profundidad;
+  //    el middleware ya devuelve 404 antes de llegar aqui.
+  if (!IA_ENABLED) {
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  }
+
   // 1. Llave configurada? (Modo dueno unico: sin login que verificar.)
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey || apiKey.includes("placeholder")) {

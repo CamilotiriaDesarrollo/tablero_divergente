@@ -37,10 +37,13 @@ App personal de gestión (proyectos, tareas, ideas, calendario) de un solo dueñ
 
 ## Clones para otros dueños (multi-instancia, un solo repo)
 
-Este repo puede desplegarse varias veces para distintos dueños (ej. "usuario 001", "usuario 002"), cada uno con su propio proyecto Supabase (base 100% independiente) y su propio proyecto Vercel, pero **compartiendo el mismo código**. Un `git push` a `main` redespliega todos los clones; lo único que cambia entre ellos son las variables de entorno:
+Este repo puede desplegarse varias veces para distintos dueños (ej. "usuario 001", "usuario 002"), cada uno con su propio proyecto Vercel pero **compartiendo el mismo código**. Un `git push` a `main` redespliega todos los clones; lo único que cambia entre ellos son las variables de entorno.
 
-- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — proyecto Supabase propio de ese dueño.
-- `OWNER_USER_ID` — uuid fijo propio (ej. `...002` para el segundo dueño).
+Cada clon puede tener **su propio proyecto Supabase** (aislamiento real) o **compartir uno**, distinguiéndose solo por `OWNER_USER_ID`. Compartir base evita duplicar migraciones, pero entonces **el aislamiento lo da únicamente el filtro `user_id` de `lib/db`, no la base**: la RLS es permisiva y la anon key es pública y compartida, así que un dueño con conocimientos técnicos podría leer los datos del otro consultando PostgREST directamente. Compartir base solo es aceptable entre personas de confianza mutua; para separación real hace falta base propia por clon (o login + RLS por `auth.uid()`).
+
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — proyecto Supabase de ese dueño (propio o compartido).
+- `OWNER_USER_ID` — uuid fijo propio (ej. `...002` para el segundo dueño). Con base compartida, esta variable es lo ÚNICO que separa los datos de un dueño de los del otro: nunca la dejes vacía ni repetida entre clones.
+- `NEXT_PUBLIC_ENABLE_IA` — enciende/apaga toda la IA del clon (`lib/config.ts` define `IA_ENABLED`): botón Asistente y su entrada en la barra de comando, `ChatPanel`, y el micrófono/subir-audio de las capturas rápidas. El bloqueo real de `/api/ai` y `/api/transcribe` con 404 vive en `middleware.ts`, con guarda repetida dentro de cada route. Ponlo en `false` en clones sin `ANTHROPIC_API_KEY`/`GROQ_API_KEY`: si no, quedan botones que fallan al tocarlos.
 - `NEXT_PUBLIC_ENABLE_MARKETING` — enciende/apaga el módulo Marketing por clon (`lib/config.ts` define `MARKETING_ENABLED`, filtra `lib/nav.ts` y las suscripciones de `realtime-refresher.tsx`). El bloqueo real de `/marketing` y `/api/marketing/*` con status 404 vive en `middleware.ts`, no en `notFound()` dentro de la página: un `notFound()` en un segmento anidado sin `not-found.tsx` propio no siempre setea el status HTTP a 404 en Next.js (se comprobó en pruebas locales), así que el middleware es la fuente de verdad.
 - `SITE_USER` / `SITE_PASSWORD` — contraseña propia de cada clon.
 

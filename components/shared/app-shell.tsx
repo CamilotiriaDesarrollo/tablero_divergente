@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 import { Layers, Menu, Search, Sparkles } from "lucide-react";
 import { navIcon } from "@/components/shared/nav-icons";
 import { cn } from "@/lib/utils";
-import { APP_NAME } from "@/lib/config";
+import { APP_NAME, IA_ENABLED } from "@/lib/config";
 import { NAV_ITEMS } from "@/lib/nav";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -126,15 +126,17 @@ export function AppShell({
           </button>
 
           <div className="ml-auto flex items-center gap-1">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setAssistantOpen(true)}
-              className="gap-2"
-            >
-              <Sparkles className="size-4" />
-              <span className="hidden sm:inline">Asistente</span>
-            </Button>
+            {IA_ENABLED ? (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setAssistantOpen(true)}
+                className="gap-2"
+              >
+                <Sparkles className="size-4" />
+                <span className="hidden sm:inline">Asistente</span>
+              </Button>
+            ) : null}
           </div>
         </header>
 
@@ -146,7 +148,9 @@ export function AppShell({
         onOpenChange={setPaletteOpen}
         onOpenAssistant={() => setAssistantOpen(true)}
       />
-      <ChatPanel open={assistantOpen} onOpenChange={setAssistantOpen} />
+      {IA_ENABLED ? (
+        <ChatPanel open={assistantOpen} onOpenChange={setAssistantOpen} />
+      ) : null}
       <RealtimeRefresher userId={userId} />
     </div>
   );

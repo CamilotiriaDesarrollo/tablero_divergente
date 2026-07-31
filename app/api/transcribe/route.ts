@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { IA_ENABLED } from "@/lib/config";
 import { transcribeAudio } from "@/lib/ai/transcribe";
 
 export const runtime = "nodejs";
@@ -7,6 +8,11 @@ export const maxDuration = 60;
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
+  // Defensa en profundidad: el middleware ya devuelve 404 con la IA apagada.
+  if (!IA_ENABLED) {
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  }
+
   let audio: File;
 
   try {
