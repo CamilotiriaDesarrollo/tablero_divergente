@@ -47,6 +47,10 @@ export function TareasView({
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6">
+      {/* Arriba del todo y plegado: su titulo ya avisa si hay dias cargados, y
+          se despliega solo cuando quieres mirar como vienes de carga. */}
+      <WorkloadHeatmap days={workloadDays} collapsible />
+
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">
@@ -80,10 +84,6 @@ export function TareasView({
             Repetitivas
           </TabsTrigger>
         </TabsList>
-
-        {/* El mapa de saturacion acompana a todas las vistas: es el contexto de
-            cuanto trabajo hay por delante, no una vista mas. */}
-        <WorkloadHeatmap days={workloadDays} />
 
         <TabsContent value="tabla">
           <TaskTable tasks={boardTasks} onEdit={setEditingTask} />
