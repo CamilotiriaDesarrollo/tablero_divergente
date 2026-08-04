@@ -4,8 +4,14 @@
 // proceso, listo, publicado). Cada pieza lleva su formato completo (red, tipo,
 // avatares, hook, bullets, guion, CTA). Filtros por red, avatar y busqueda. El
 // estado ordena las columnas pero no reordena nada por su cuenta (CLAUDE.md).
+//
+// Las tarjetas van plegadas y se abre una sola en todo el tablero: con 20
+// piezas, tenerlas todas abiertas convierte la columna en un muro y obliga a
+// hacer scroll para comparar. Cada estado tiene su color, repetido en el punto
+// del encabezado y en la barra de la tarjeta.
 import { useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,6 +25,7 @@ import {
   PLANNER_NETWORKS,
   PLANNER_STATUS_HINT,
   PLANNER_STATUS_LABEL,
+  PLANNER_STATUS_TONE,
 } from "@/components/marketing/marketing-constants";
 import {
   PlannerItemForm,
@@ -44,6 +51,8 @@ export function PlannerBoard({
   const [query, setQuery] = useState("");
   const [networkFilter, setNetworkFilter] = useState(ALL);
   const [avatarFilter, setAvatarFilter] = useState(ALL);
+  // Acordeon: una sola pieza abierta en todo el tablero. Volver a tocarla la cierra.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const term = query.trim().toLocaleLowerCase("es-CO");
 
@@ -158,9 +167,10 @@ export function PlannerBoard({
           Ningun contenido coincide con estos filtros.
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
           {MARKETING_PLANNER_STATUSES.map((status) => {
             const columnItems = byStatus.get(status) ?? [];
+            const tone = PLANNER_STATUS_TONE[status];
             return (
               <section
                 key={status}
@@ -169,10 +179,20 @@ export function PlannerBoard({
               >
                 <div className="px-3 py-2.5">
                   <div className="flex items-center gap-2">
+                    <span
+                      className={cn("size-2 shrink-0 rounded-full", tone.accent)}
+                      aria-hidden
+                    />
                     <h3 className="text-sm font-medium">
                       {PLANNER_STATUS_LABEL[status]}
                     </h3>
-                    <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 font-mono text-[11px] tabular-nums",
+                        tone.soft,
+                        tone.text,
+                      )}
+                    >
                       {columnItems.length}
                     </span>
                   </div>
@@ -180,13 +200,19 @@ export function PlannerBoard({
                     {PLANNER_STATUS_HINT[status]}
                   </p>
                 </div>
-                <div className="flex flex-1 flex-col gap-3 px-2 pb-2">
+                <div className="flex flex-1 flex-col gap-2 px-2 pb-2">
                   {columnItems.map((item) => (
                     <PlannerItemCard
                       key={item.id}
                       item={item}
                       avatars={avatars}
                       onEdit={openEdit}
+                      expanded={expandedId === item.id}
+                      onToggle={() =>
+                        setExpandedId((current) =>
+                          current === item.id ? null : item.id,
+                        )
+                      }
                     />
                   ))}
                   {columnItems.length === 0 ? (

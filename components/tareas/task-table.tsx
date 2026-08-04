@@ -246,7 +246,7 @@ export function TaskTable({
       <div className="rounded-lg border border-dashed border-border p-10 text-center">
         <p className="text-sm font-medium">Aun no hay tareas en el tablero</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Crea la primera con el boton Nueva tarea.
+          Crea la primera con el boton Tarea de arriba.
         </p>
       </div>
     );

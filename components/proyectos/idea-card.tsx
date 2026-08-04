@@ -1,11 +1,17 @@
 "use client";
-
+// components/proyectos/idea-card.tsx
+// Una idea del banco, plegada por defecto. Misma organizacion que el planeador
+// de Marketing: fila compacta de alto fijo, se abre una a la vez y solo la
+// abierta muestra el desarrollo completo y las acciones. En una sola columna el
+// banco se lee como una lista, que es como se revisa: de arriba a abajo.
+//
+// La barra de color es el color de la idea; sirve para reconocerla de un vistazo
+// cuando ya hay muchas.
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Pencil } from "lucide-react";
+import { ArrowUpRight, ChevronRight, Lightbulb, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -16,23 +22,41 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { PromoteIdeaButton } from "@/components/proyectos/promote-idea-button";
+import {
+  IdeaToTaskDialog,
+  type IdeaTaskProject,
+} from "@/components/proyectos/idea-to-task-dialog";
 import { projectColorValue } from "@/components/proyectos/project-colors";
-import { updateProjectAction } from "@/lib/db/actions";
+import { deleteProjectAction, updateProjectAction } from "@/lib/db/actions";
+import { cn } from "@/lib/utils";
 import { formatFecha } from "@/lib/utils/dates";
 import type { Project } from "@/types/db";
 
 const NOTE_LIMIT = 8000;
 
-export function IdeaCard({ idea }: { idea: Project }) {
+export function IdeaCard({
+  idea,
+  projects,
+  expanded,
+  onToggle,
+}: {
+  idea: Project;
+  projects: IdeaTaskProject[];
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(idea.name);
   const [description, setDescription] = useState(idea.description ?? "");
+
   const accent = projectColorValue(idea.color);
-  const icon = idea.icon?.trim() || "Idea";
+  const emoji = idea.icon?.trim() || null;
   const capturada = formatFecha(idea.created_at, "d MMM");
+  const desarrollo = idea.description?.trim() ?? "";
 
   function saveIdea(event: React.FormEvent) {
     event.preventDefault();
@@ -58,50 +82,163 @@ export function IdeaCard({ idea }: { idea: Project }) {
     });
   }
 
+  function confirmDelete() {
+    startTransition(async () => {
+      try {
+        await deleteProjectAction(idea.id);
+        toast.success("Idea eliminada");
+        setDeleteOpen(false);
+        router.refresh();
+      } catch (error) {
+        toast.error("No se pudo eliminar la idea", {
+          description: error instanceof Error ? error.message : "Intenta de nuevo.",
+        });
+      }
+    });
+  }
+
   return (
     <>
-      <Card
-        className="h-full gap-3 border-l-4"
-        style={{ borderLeftColor: accent, backgroundColor: `${accent}0d` }}
+      <article
+        className={cn(
+          "relative overflow-hidden rounded-lg bg-card ring-1 transition-shadow",
+          expanded ? "shadow-sm ring-foreground/20" : "ring-foreground/10",
+        )}
       >
-        <CardHeader>
-          <div className="flex items-start gap-3">
-            <span
-              aria-hidden="true"
-              className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-card text-xs font-medium"
-              style={{ boxShadow: `inset 0 0 0 1.5px ${accent}88` }}
-            >
-              {icon}
+        <span
+          className="pointer-events-none absolute inset-0"
+          style={{ backgroundColor: `${accent}0d` }}
+          aria-hidden
+        />
+        <span
+          className="absolute inset-y-0 left-0 w-1"
+          style={{ backgroundColor: accent }}
+          aria-hidden
+        />
+
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          className="relative flex w-full items-start gap-2.5 py-2.5 pl-3 pr-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ChevronRight
+            aria-hidden
+            className={cn(
+              "mt-1 size-4 shrink-0 text-muted-foreground transition-transform",
+              expanded && "rotate-90",
+            )}
+          />
+          <span
+            aria-hidden
+            className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-card text-sm"
+            style={{ boxShadow: `inset 0 0 0 1.5px ${accent}88` }}
+          >
+            {emoji ?? (
+              <Lightbulb className="size-4" style={{ color: accent }} />
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            {/* Alto fijo de dos lineas: todas las filas cerradas miden igual. */}
+            <span className="line-clamp-2 min-h-10 break-words text-sm font-medium leading-snug">
+              {idea.name}
             </span>
-            <div className="min-w-0 flex-1">
-              <h3 className="font-heading text-base font-medium leading-snug">{idea.name}</h3>
+            <span className="mt-0.5 flex h-4 items-center gap-x-2 overflow-hidden text-[11px] leading-4 text-muted-foreground">
               {capturada ? (
-                <p className="font-mono text-xs text-muted-foreground">capturada el {capturada}</p>
+                <span className="shrink-0">capturada el {capturada}</span>
               ) : null}
+              <span className="truncate">
+                {desarrollo
+                  ? `${desarrollo.length.toLocaleString("es-CO")} caracteres`
+                  : "sin desarrollo"}
+              </span>
+            </span>
+          </span>
+        </button>
+
+        {expanded ? (
+          <div className="relative space-y-3 border-t px-3 py-3 pl-4">
+            {desarrollo ? (
+              // break-words: las ideas dictadas suelen traer URLs largas sin
+              // espacios, que sin esto empujan la fila fuera de la pantalla.
+              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
+                {desarrollo}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground/70">
+                Sin desarrollo todavia. Abre Desarrollar para trabajarla.
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setOpen(true)}
+              >
+                <Pencil />
+                Desarrollar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setTaskOpen(true)}
+              >
+                <ArrowUpRight />
+                Convertir en tarea
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Eliminar idea"
+                title="Eliminar idea"
+                className="ml-auto text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 />
+              </Button>
             </div>
           </div>
-        </CardHeader>
+        ) : null}
+      </article>
 
-        {idea.description?.trim() ? (
-          <CardContent>
-            <p className="line-clamp-5 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-              {idea.description}
-            </p>
-          </CardContent>
-        ) : (
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Sin desarrollo todavia.</p>
-          </CardContent>
-        )}
+      <IdeaToTaskDialog
+        idea={idea}
+        projects={projects}
+        open={taskOpen}
+        onOpenChange={setTaskOpen}
+      />
 
-        <CardFooter className="mt-auto flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
-            <Pencil />
-            Desarrollar
-          </Button>
-          <PromoteIdeaButton ideaId={idea.id} />
-        </CardFooter>
-      </Card>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eliminar idea</DialogTitle>
+            <DialogDescription>
+              Se elimina &quot;{idea.name}&quot; y todo su desarrollo. Esta accion
+              no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={pending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={pending}
+            >
+              {pending ? "Eliminando..." : "Eliminar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">

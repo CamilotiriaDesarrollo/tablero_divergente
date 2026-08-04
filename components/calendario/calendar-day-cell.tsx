@@ -14,15 +14,24 @@ import { projectColorValue } from "@/components/proyectos/project-colors";
 import type { TaskWithProject } from "@/types/db";
 import { formatDayLong } from "./month-range";
 
-/** Chip compacto de una tarea. Reutilizado en la celda, el popover y la lista movil. */
+/**
+ * Chip compacto de una tarea. Reutilizado en la celda, el popover y la lista movil.
+ *
+ * El proyecto se reconoce por su icono (o, si no tiene, por el punto de color).
+ * Con `showProject` se anade ademas el nombre debajo: se usa donde sobra ancho
+ * (popover del "+X mas" y lista de movil), no en la celda del mes, donde robaria
+ * el sitio al titulo de la tarea.
+ */
 export function TaskChip({
   task,
   onSelect,
   className,
+  showProject = false,
 }: {
   task: TaskWithProject;
   onSelect: (task: TaskWithProject) => void;
   className?: string;
+  showProject?: boolean;
 }) {
   const done = task.status === "hecho";
   const projectColor = task.project
@@ -43,17 +52,38 @@ export function TaskChip({
         className,
       )}
     >
-      <span
-        className={cn(
-          "size-1.5 shrink-0 rounded-full",
-          !projectColor && "bg-muted-foreground/40",
-          done && "opacity-50",
-        )}
-        style={projectColor ? { backgroundColor: projectColor } : undefined}
-        aria-hidden
-      />
-      <span className={cn("truncate", done && "text-muted-foreground line-through")}>
-        {task.title}
+      {task.project?.icon ? (
+        <span
+          className={cn("shrink-0 text-[11px] leading-none", done && "opacity-50")}
+          aria-hidden
+        >
+          {task.project.icon}
+        </span>
+      ) : (
+        <span
+          className={cn(
+            "size-1.5 shrink-0 rounded-full",
+            !projectColor && "bg-muted-foreground/40",
+            done && "opacity-50",
+          )}
+          style={projectColor ? { backgroundColor: projectColor } : undefined}
+          aria-hidden
+        />
+      )}
+      <span className="min-w-0 flex-1">
+        <span
+          className={cn(
+            "block truncate",
+            done && "text-muted-foreground line-through",
+          )}
+        >
+          {task.title}
+        </span>
+        {showProject ? (
+          <span className="block truncate text-[10px] leading-tight text-muted-foreground">
+            {task.project?.name ?? "Sin proyecto"}
+          </span>
+        ) : null}
       </span>
     </button>
   );
@@ -129,7 +159,12 @@ export function CalendarDayCell({
               </div>
               <div className="flex flex-col gap-0.5">
                 {overflow.map((task) => (
-                  <TaskChip key={task.id} task={task} onSelect={onSelectTask} />
+                  <TaskChip
+                    key={task.id}
+                    task={task}
+                    onSelect={onSelectTask}
+                    showProject
+                  />
                 ))}
               </div>
             </PopoverContent>

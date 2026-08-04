@@ -4,7 +4,7 @@
 // organizar (ej. "Fase 0", "Modulo 1"). Cada fila abre la tarea completa en un
 // popup (TaskForm en modo edicion). Se puede agregar tarea (a una fase o suelta),
 // crear/renombrar/mover/eliminar fases. Muta via *Action + router.refresh().
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -19,7 +19,27 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
+  GripVertical,
 } from "lucide-react";
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,7 +78,9 @@ import {
   renamePhaseAction,
   deletePhaseAction,
   reorderPhasesAction,
+  reorderTasksAction,
 } from "@/lib/db/actions";
+import { markLocalMutation } from "@/lib/realtime/echo-guard";
 import { PRIORITY_EMOJI, PRIORITY_LABEL } from "@/lib/utils/urgency";
 import { CATEGORY_EMOJI, CATEGORY_LABEL } from "@/components/tareas/task-constants";
 import { diasRestantesLabel, dueDateTone } from "@/lib/utils/dates";
@@ -305,7 +327,7 @@ function ArchivedTasks({
                 <span className="truncate">{phase.name}</span>
                 <span className="font-mono text-xs font-normal">{phaseTasks.length}</span>
               </h3>
-              <TaskList tasks={phaseTasks} onOpenTask={onOpenTask} />
+              <TaskList tasks={phaseTasks} onOpenTask={onOpenTask} reorderable={false} />
             </div>
           );
         })}
@@ -317,7 +339,7 @@ function ArchivedTasks({
                 Sin fase <span className="font-mono text-xs font-normal">{noPhase.length}</span>
               </h3>
             ) : null}
-            <TaskList tasks={noPhase} onOpenTask={onOpenTask} />
+            <TaskList tasks={noPhase} onOpenTask={onOpenTask} reorderable={false} />
           </div>
         ) : null}
       </div>
@@ -440,33 +462,142 @@ function PhaseSection({
   );
 }
 
+/**
+ * Lista de tareas reordenable a mano (arrastrando por la agarradera de la
+ * izquierda). El orden se guarda en `position` y es el que manda al mostrar.
+ *
+ * UI OPTIMISTA, igual que el Kanban: al soltar, la lista local se reacomoda al
+ * instante y la escritura va en segundo plano; si falla, vuelve al orden del
+ * servidor y avisa. Cada lista tiene su propio DndContext, asi que una tarea se
+ * mueve dentro de su fase y no salta a otra por accidente (para cambiarla de
+ * fase esta el popup de la tarea).
+ *
+ * `reorderable={false}` para las listas de Finalizadas: ahi el orden no aporta.
+ */
 function TaskList({
   tasks,
   onOpenTask,
+  reorderable = true,
 }: {
   tasks: TaskWithProject[];
   onOpenTask: (task: TaskWithProject) => void;
+  reorderable?: boolean;
 }) {
+  const router = useRouter();
+  const [items, setItems] = useState(tasks);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const draggingRef = useRef(false);
+
+  // Reconciliar con el servidor cuando llegan datos nuevos, salvo en pleno
+  // arrastre (mover el suelo bajo los pies rompe el gesto).
+  useEffect(() => {
+    if (draggingRef.current) return;
+    setItems(tasks);
+  }, [tasks]);
+
+  const sensors = useSensors(
+    // 5px de margen: un clic en la agarradera no cuenta como arrastre.
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const activeTask = activeId ? items.find((t) => t.id === activeId) : null;
+
+  function handleDragStart(event: DragStartEvent) {
+    draggingRef.current = true;
+    setActiveId(String(event.active.id));
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveId(null);
+    draggingRef.current = false;
+    if (!over || active.id === over.id) return;
+
+    const from = items.findIndex((t) => t.id === active.id);
+    const to = items.findIndex((t) => t.id === over.id);
+    if (from === -1 || to === -1) return;
+
+    const next = arrayMove(items, from, to);
+    setItems(next);
+    void persist(next);
+  }
+
+  async function persist(next: TaskWithProject[]) {
+    markLocalMutation(); // suprime el eco de Realtime de esta misma mutacion
+    try {
+      await reorderTasksAction(next.map((t) => t.id));
+      markLocalMutation();
+      router.refresh();
+    } catch (error) {
+      toast.error("No se pudo cambiar el orden. Vuelvo a como estaba.", {
+        description: errorMessage(error),
+      });
+      setItems(tasks);
+      router.refresh();
+    }
+  }
+
   return (
-    <ul className="divide-y divide-border overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
-      {tasks.map((task) => (
-        <TaskRow key={task.id} task={task} onOpen={() => onOpenTask(task)} />
-      ))}
-    </ul>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => {
+        setActiveId(null);
+        draggingRef.current = false;
+      }}
+    >
+      <SortableContext
+        items={items.map((t) => t.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <ul className="divide-y divide-border overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+          {items.map((task) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              onOpen={() => onOpenTask(task)}
+              reorderable={reorderable}
+            />
+          ))}
+        </ul>
+      </SortableContext>
+
+      <DragOverlay>
+        {activeTask ? (
+          <div className="flex items-center gap-3 rounded-xl bg-card px-3 py-2.5 shadow-lg ring-1 ring-foreground/15">
+            <GripVertical className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="truncate text-sm">{activeTask.title}</span>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }
 
 function TaskRow({
   task,
   onOpen,
+  reorderable = false,
 }: {
   task: TaskWithProject;
   onOpen: () => void;
+  reorderable?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const done = task.status === "hecho";
   const categoryEmoji = task.category ? CATEGORY_EMOJI[task.category] : undefined;
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id, disabled: !reorderable });
 
   function toggle() {
     startTransition(async () => {
@@ -488,7 +619,34 @@ function TaskRow({
   }
 
   return (
-    <li className="flex items-center gap-3 px-3 py-2.5">
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "group/row relative flex items-center gap-3 bg-card px-3 py-2.5",
+        // La fila que se arrastra se atenua: el que "viaja" es el DragOverlay.
+        isDragging && "z-10 opacity-40",
+      )}
+    >
+      {reorderable ? (
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label={`Reordenar: ${task.title}`}
+          title="Arrastra para cambiar el orden"
+          className={cn(
+            "-ml-1 shrink-0 cursor-grab touch-none rounded-md p-0.5 text-muted-foreground/60",
+            "outline-none transition-[opacity,color] hover:text-foreground active:cursor-grabbing",
+            "focus-visible:ring-2 focus-visible:ring-ring",
+            // Discreta: aparece al pasar el raton o al llegar con el teclado.
+            "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+          )}
+        >
+          <GripVertical className="size-4" aria-hidden />
+        </button>
+      ) : null}
+
       <button
         type="button"
         onClick={toggle}

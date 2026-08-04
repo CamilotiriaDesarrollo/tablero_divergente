@@ -1,9 +1,11 @@
 "use client";
 // components/marketing/marketing-board.tsx
-// Tablero de Marketing: pestanas superiores Avatares/Canales. Dentro de
-// Avatares, 3 columnas: selector vertical de avatar, perfil + ficha completa,
-// y espacio de trabajo (captura de ideas + tarjetas). En movil se apila todo
-// verticalmente y el selector pasa a fila horizontal con scroll.
+// Tablero de Marketing: pestanas superiores Planeador/Avatares/Canales. El
+// Planeador va primero y abre por defecto porque es el trabajo del dia; los
+// avatares y los canales son la ficha que se consulta, no lo que se opera.
+// Dentro de Avatares, 2 columnas: selector + perfil/ficha completa a la
+// izquierda y espacio de trabajo (captura de ideas + tarjetas) a la derecha.
+// En movil se apila todo verticalmente.
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -86,12 +88,16 @@ export function MarketingBoard({
   if (!active) return null;
 
   return (
-    <Tabs defaultValue="avatares" className="gap-5">
+    <Tabs defaultValue="planeador" className="gap-5">
       <TabsList className="h-9 w-fit">
+        <TabsTrigger value="planeador">Planeador</TabsTrigger>
         <TabsTrigger value="avatares">Avatares</TabsTrigger>
         <TabsTrigger value="canales">Canales</TabsTrigger>
-        <TabsTrigger value="planeador">Planeador</TabsTrigger>
       </TabsList>
+
+      <TabsContent value="planeador">
+        <PlannerBoard items={plannerItems} avatars={avatarOptions} />
+      </TabsContent>
 
       <TabsContent value="avatares">
         <div className="grid gap-5 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)] lg:items-start">
@@ -128,10 +134,6 @@ export function MarketingBoard({
 
       <TabsContent value="canales">
         <ChannelsView />
-      </TabsContent>
-
-      <TabsContent value="planeador">
-        <PlannerBoard items={plannerItems} avatars={avatarOptions} />
       </TabsContent>
     </Tabs>
   );

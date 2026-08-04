@@ -59,6 +59,9 @@ const createTaskSchema = z.object({
   due_at: isoDate.nullish(),
   resource_url: z.string().trim().max(2000).nullish(),
   is_daily: z.boolean().optional(),
+  // Dias de repeticion semanal (1=lunes .. 7=domingo). Se omite del payload
+  // cuando esta vacio, para no depender de la migracion 0014 en el caso comun.
+  weekly_days: z.array(z.number().int().min(1).max(7)).max(7).optional(),
 });
 
 const updateTaskSchema = createTaskSchema.partial();

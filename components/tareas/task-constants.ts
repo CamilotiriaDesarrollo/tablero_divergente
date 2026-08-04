@@ -21,6 +21,7 @@ export const CATEGORY_OPTIONS = [
   "aprendizaje",
   "disfrute",
   "inspiracional",
+  "administrativa",
 ] as const;
 
 export const CATEGORY_LABEL: Record<string, string> = {
@@ -28,6 +29,7 @@ export const CATEGORY_LABEL: Record<string, string> = {
   aprendizaje: "Aprendizaje",
   disfrute: "Disfrute",
   inspiracional: "Inspiracional",
+  administrativa: "Administrativa",
 };
 
 /** Emoji por categoria (senal sutil en la UI, nunca decision). */
@@ -36,6 +38,7 @@ export const CATEGORY_EMOJI: Record<string, string> = {
   aprendizaje: "📚",
   disfrute: "🌿",
   inspiracional: "✨",
+  administrativa: "🗂️",
 };
 
 /** Centinela para "sin seleccion" en los Select (base-ui no permite value vacio). */

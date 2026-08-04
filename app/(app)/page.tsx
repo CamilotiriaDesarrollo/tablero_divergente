@@ -3,7 +3,7 @@
 // realizadas), actividad de la semana, distribucion por prioridad, trabajo por
 // proyecto y listas de foco (vencido / hoy / proximo). La urgencia sugiere, el
 // orden lo decide la persona (BLUEPRINT / CLAUDE.md). Sin em-dashes en la copy.
-import { addDays, subDays, startOfDay, startOfWeek, parseISO, format } from "date-fns";
+import { subDays, startOfDay, parseISO, format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   AlertTriangle,
@@ -15,8 +15,9 @@ import {
 } from "lucide-react";
 import { getAllBoardTasks, getOpenTasks, getCompletedSince } from "@/lib/db/tasks";
 import { getProjectOptions } from "@/lib/db/projects";
-import type { Priority, TaskWithProject } from "@/types/db";
-import { isSupabaseConfigured } from "@/lib/config";
+import { getAvatars } from "@/lib/db/marketing";
+import type { MarketingAvatar, Priority, TaskWithProject } from "@/types/db";
+import { MARKETING_ENABLED, isSupabaseConfigured } from "@/lib/config";
 import {
   toDateColumn,
   diasRestantes,
@@ -24,16 +25,16 @@ import {
   estaVencida,
 } from "@/lib/utils/dates";
 import { EmptyState } from "@/components/shared/empty-state";
-import { InicioQuickCapture } from "@/components/shared/inicio-quick-capture";
+import { QuickCaptureButtons } from "@/components/shared/quick-capture-buttons";
 import {
   StatCard,
   WorkloadHeatmap,
   PriorityBreakdown,
   ProjectBreakdown,
   FocusSection,
-  type WorkloadDay,
   type ProjectSlot,
 } from "@/components/inicio/dashboard";
+import { buildWorkloadDays } from "@/lib/utils/workload";
 import { TaskListDialogButton } from "@/components/inicio/task-list-panel";
 
 export const dynamic = "force-dynamic";
@@ -62,13 +63,17 @@ export default async function InicioPage() {
   let completed: TaskWithProject[] = [];
   let allBoardTasks: TaskWithProject[] = [];
   let projectOptions: Awaited<ReturnType<typeof getProjectOptions>> = [];
+  // Alimentan el boton "Contenido" de la captura rapida. Con Marketing apagado
+  // no se consultan: ese clon ni siquiera muestra el boton.
+  let avatars: MarketingAvatar[] = [];
   let failed = false;
   try {
-    [openTasks, completed, allBoardTasks, projectOptions] = await Promise.all([
+    [openTasks, completed, allBoardTasks, projectOptions, avatars] = await Promise.all([
       getOpenTasks(), // todo + en_progreso, nivel superior, con proyecto
       getCompletedSince(weekStart.toISOString()),
       getAllBoardTasks(),
       getProjectOptions({ statuses: ["activo"] }),
+      MARKETING_ENABLED ? getAvatars() : Promise.resolve([]),
     ]);
   } catch {
     failed = true;
@@ -120,28 +125,7 @@ export default async function InicioPage() {
     (t) => dayOf(t.completed_at) === todayStr,
   ).length;
 
-  const dueByDay = new Map<string, TaskWithProject[]>();
-  for (const task of openTasks) {
-    if (!task.due_at) continue;
-    const key = toDateColumn(parseISO(task.due_at));
-    dueByDay.set(key, [...(dueByDay.get(key) ?? []), task]);
-  }
-  const heatmapStart = startOfWeek(now, { weekStartsOn: 1 });
-  const heatmapDays: WorkloadDay[] = Array.from({ length: 16 * 7 }, (_, index) => {
-    const date = addDays(heatmapStart, index);
-    const key = toDateColumn(date);
-    const tasks = dueByDay.get(key) ?? [];
-    return {
-      key,
-      label: format(date, "EEEE d 'de' MMMM", { locale: es }),
-      month: format(date, "MMM", { locale: es }),
-      count: tasks.length,
-      highPriority: tasks.filter((task) => task.priority === "alta").length,
-      isToday: key === todayStr,
-      isPast: key < todayStr,
-      tasks,
-    };
-  });
+  const heatmapDays = buildWorkloadDays(openTasks, { now });
 
   // --- Avance por proyecto (incluye "Sin proyecto") ---
   const projMap = new Map<string, ProjectSlot>();
@@ -195,7 +179,10 @@ export default async function InicioPage() {
         </p>
       </header>
 
-      <InicioQuickCapture projects={projectOptions} />
+      <QuickCaptureButtons
+        projects={projectOptions}
+        avatars={avatars.map(({ id, name, icon }) => ({ id, name, icon }))}
+      />
 
       {/* Indicadores */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

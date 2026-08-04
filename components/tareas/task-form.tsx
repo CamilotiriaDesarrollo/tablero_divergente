@@ -1,8 +1,12 @@
 "use client";
 // Formulario de crear/editar/ver una tarea (dialogo controlado). Campos: titulo,
-// notas, proyecto (o fase cuando se abre dentro de un proyecto), prioridad, fecha
-// recibida, fecha entrega, categoria, recurso (url) y diaria. Muta via
-// createTaskAction / updateTaskAction. En modo edicion muestra las subtareas.
+// notas, proyecto (o fase cuando se abre dentro de un proyecto), prioridad,
+// fecha entrega, categoria, recurso (url) y diaria. Muta via createTaskAction /
+// updateTaskAction. En modo edicion muestra las subtareas.
+//
+// La fecha recibida NO se pide: al crear queda el dia en que se diligencia la
+// tarea, y al editar no se toca. Era un campo que nadie cambiaba y que solo
+// ocupaba sitio en el formulario.
 // Textos en espanol, sin em-dashes.
 import { useEffect, useState } from "react";
 import type {
@@ -38,6 +42,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { SubtaskList } from "@/components/tareas/subtask-list";
+import { WeekdayPicker } from "@/components/tareas/weekday-picker";
+import { weeklyDaysOf } from "@/lib/utils/weekdays";
 import { useRunAction } from "@/components/tareas/use-run-action";
 import {
   NONE_VALUE,
@@ -85,11 +91,11 @@ export function TaskForm({
   const [projectId, setProjectId] = useState<string>(NONE_VALUE);
   const [phaseId, setPhaseId] = useState<string>(NONE_VALUE);
   const [priority, setPriority] = useState<string>(NONE_VALUE);
-  const [receivedAt, setReceivedAt] = useState("");
   const [dueAt, setDueAt] = useState("");
   const [category, setCategory] = useState<string>(NONE_VALUE);
   const [resourceUrl, setResourceUrl] = useState("");
   const [isDaily, setIsDaily] = useState(false);
+  const [weeklyDays, setWeeklyDays] = useState<number[]>([]);
 
   // Reinicia el formulario cada vez que se abre o cambia la tarea a editar.
   useEffect(() => {
@@ -99,11 +105,11 @@ export function TaskForm({
     setProjectId(task?.project_id ?? defaultProjectId ?? NONE_VALUE);
     setPhaseId(task?.phase_id ?? defaultPhaseId ?? NONE_VALUE);
     setPriority(task ? (task.priority ?? NONE_VALUE) : "media");
-    setReceivedAt(task ? (task.received_at ?? "") : toDateColumn(new Date()));
     setDueAt(task?.due_at ?? "");
     setCategory(task?.category ?? NONE_VALUE);
     setResourceUrl(task?.resource_url ?? "");
     setIsDaily(task?.is_daily ?? false);
+    setWeeklyDays(task ? weeklyDaysOf(task) : []);
   }, [open, task, defaultProjectId, defaultPhaseId]);
 
   const phaseVisible = Boolean(phaseProjectId && projectId === phaseProjectId);
@@ -124,18 +130,28 @@ export function TaskForm({
         ? { phase_id: phaseVisible && phaseId !== NONE_VALUE ? phaseId : null }
         : {}),
       priority: (priority === NONE_VALUE ? null : priority) as Priority | null,
-      received_at: receivedAt || null,
       due_at: dueAt || null,
       category: category === NONE_VALUE ? null : category,
       resource_url: resourceUrl.trim() || null,
       is_daily: isDaily,
+      // Solo viaja si hay algo que decir o si habia dias antes (para poder
+      // quitarlos). Asi una tarea normal no depende de la migracion 0014.
+      ...(weeklyDays.length || weeklyDaysOf(task ?? {}).length
+        ? { weekly_days: weeklyDays }
+        : {}),
     };
 
     run(
       () =>
         editing && task
-          ? updateTaskAction(task.id, payload)
-          : createTaskAction({ ...payload, status: defaultStatus }),
+          ? // Sin received_at en el payload: al editar, la fecha en que se
+            // recibio la tarea se queda como estaba.
+            updateTaskAction(task.id, payload)
+          : createTaskAction({
+              ...payload,
+              status: defaultStatus,
+              received_at: toDateColumn(new Date()),
+            }),
       {
         success: editing ? "Tarea actualizada" : "Tarea creada",
         onSuccess: () => onOpenChange(false),
@@ -266,16 +282,6 @@ export function TaskForm({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="task-received">Fecha recibida</Label>
-              <Input
-                id="task-received"
-                type="date"
-                value={receivedAt}
-                onChange={(e) => setReceivedAt(e.target.value)}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
               <Label htmlFor="task-due">Fecha de entrega</Label>
               <Input
                 id="task-due"
@@ -327,20 +333,31 @@ export function TaskForm({
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-            <div className="flex flex-col">
-              <Label htmlFor="task-daily" className="cursor-pointer">
-                Tarea diaria
-              </Label>
-              <span className="text-xs text-muted-foreground">
-                Aparece en la vista de diarias.
-              </span>
+          <div className="flex flex-col gap-3 rounded-lg border border-border px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col">
+                <Label htmlFor="task-daily" className="cursor-pointer">
+                  Tarea diaria
+                </Label>
+                <span className="text-xs text-muted-foreground">
+                  Se repite todos los dias.
+                </span>
+              </div>
+              <Switch
+                id="task-daily"
+                checked={isDaily}
+                onCheckedChange={(v) => setIsDaily(v)}
+              />
             </div>
-            <Switch
-              id="task-daily"
-              checked={isDaily}
-              onCheckedChange={(v) => setIsDaily(v)}
-            />
+            <Separator />
+            <div className="flex flex-col gap-1.5">
+              <Label>Tarea semanal</Label>
+              <WeekdayPicker
+                value={weeklyDays}
+                onChange={setWeeklyDays}
+                idPrefix="task-weekday"
+              />
+            </div>
           </div>
 
           {editing && task && (

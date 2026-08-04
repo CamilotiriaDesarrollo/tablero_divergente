@@ -150,6 +150,10 @@ export interface Database {
           due_at: string | null;
           resource_url: string | null;
           is_daily: boolean;
+          // Dias de repeticion semanal (1=lunes .. 7=domingo). Nullable a
+          // proposito: si la migracion 0014 aun no se aplico, la columna no
+          // llega en el select y hay que leerla siempre con `?? []`.
+          weekly_days: number[] | null;
           completed_at: string | null;
           position: number;
           created_at: string;
@@ -171,6 +175,7 @@ export interface Database {
           due_at?: string | null;
           resource_url?: string | null;
           is_daily?: boolean;
+          weekly_days?: number[];
           completed_at?: string | null;
           position?: number;
           created_at?: string;
@@ -192,6 +197,7 @@ export interface Database {
           due_at?: string | null;
           resource_url?: string | null;
           is_daily?: boolean;
+          weekly_days?: number[];
           completed_at?: string | null;
           position?: number;
           created_at?: string;

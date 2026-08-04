@@ -11,6 +11,7 @@ const ABBREVIATIONS: Record<string, string> = {
   WhatsApp: "WA",
   X: "X",
   Podcast: "PD",
+  Skool: "SK",
 };
 
 export function ChannelMark({

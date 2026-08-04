@@ -7,7 +7,7 @@
 // Uso:  node scripts/verify-owners.mjs            (usa .env.local)
 //       node scripts/verify-owners.mjs --env .env.destino
 import { readFileSync, existsSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");

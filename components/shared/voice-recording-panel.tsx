@@ -2,12 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LoaderCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface VoiceRecordingPanelProps {
   stream: MediaStream | null;
   recording: boolean;
   liveTranscript: string;
   liveSupported: boolean;
+  /** Permite anclarlo dentro de otro bloque (por ejemplo, bajo el microfono). */
+  className?: string;
 }
 
 function formatDuration(seconds: number): string {
@@ -21,6 +24,7 @@ export function VoiceRecordingPanel({
   recording,
   liveTranscript,
   liveSupported,
+  className,
 }: VoiceRecordingPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const transcriptRef = useRef<HTMLParagraphElement | null>(null);
@@ -102,7 +106,10 @@ export function VoiceRecordingPanel({
 
   return (
     <div
-      className="mt-3 overflow-hidden rounded-lg border border-primary/30 bg-primary/5"
+      className={cn(
+        "mt-3 overflow-hidden rounded-lg border border-primary/30 bg-primary/5",
+        className,
+      )}
       aria-live="polite"
     >
       <div className="flex items-center justify-between gap-3 border-b border-primary/15 px-3 py-2">

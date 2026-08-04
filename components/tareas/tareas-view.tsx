@@ -1,9 +1,13 @@
 "use client";
 // Vista principal de tareas: Tabs (Tabla / Kanban / Tiempo / Diarias) sobre el
-// mismo dato, mas el boton global "Nueva tarea". Mantiene el estado de los
-// dialogos de crear y editar. Los datos llegan como props desde el RSC.
+// mismo dato, mas el boton redondo de captura. Mantiene el estado del dialogo
+// de edicion. Los datos llegan como props desde el RSC.
+//
+// Crear es el MISMO boton y el MISMO dialogo de Inicio (con microfono): una
+// tarea se captura igual desde donde sea. Editar sigue usando TaskForm, que
+// ademas muestra las subtareas y la fase.
 import { useState } from "react";
-import { Plus, List, Columns3, Clock, Repeat } from "lucide-react";
+import { List, Columns3, Clock, Repeat } from "lucide-react";
 import type { Project, Task, TaskWithProject } from "@/types/db";
 import {
   Tabs,
@@ -11,12 +15,15 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
+import { TaskCaptureButton } from "@/components/shared/quick-capture-buttons";
+import { WorkloadHeatmap } from "@/components/inicio/workload-heatmap";
 import { TaskTable } from "@/components/tareas/task-table";
 import { KanbanBoard } from "@/components/tareas/kanban-board";
 import { TimeBucketsBoard } from "@/components/tareas/time-buckets-board";
-import { DailyTasks } from "@/components/tareas/daily-tasks";
+import { RepeatingTasks } from "@/components/tareas/daily-tasks";
 import { TaskForm } from "@/components/tareas/task-form";
+import { esSemanal } from "@/lib/utils/weekdays";
+import type { WorkloadDay } from "@/lib/utils/workload";
 
 type ProjectOption = Pick<Project, "id" | "name" | "color" | "icon" | "status">;
 
@@ -24,17 +31,23 @@ export function TareasView({
   boardTasks,
   dailyTasks,
   projects,
+  workloadDays,
 }: {
   boardTasks: TaskWithProject[];
   dailyTasks: TaskWithProject[];
   projects: ProjectOption[];
+  workloadDays: WorkloadDay[];
 }) {
-  const [newOpen, setNewOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+
+  // Las semanales se derivan de las tareas que ya trajimos, sin consultar de
+  // nuevo: asi la pantalla sigue funcionando aunque la migracion 0014 aun no
+  // este aplicada (sin columna, ninguna tarea es semanal y ya).
+  const weeklyTasks = boardTasks.filter(esSemanal);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">
             Tareas
@@ -43,10 +56,9 @@ export function TareasView({
             El mismo dato en cuatro vistas. La urgencia sugiere, tu decides.
           </p>
         </div>
-        <Button onClick={() => setNewOpen(true)}>
-          <Plus />
-          Nueva tarea
-        </Button>
+        <div className="shrink-0">
+          <TaskCaptureButton projects={projects} />
+        </div>
       </header>
 
       <Tabs defaultValue="tabla" className="gap-4">
@@ -63,11 +75,15 @@ export function TareasView({
             <Clock />
             Tiempo
           </TabsTrigger>
-          <TabsTrigger value="diarias">
+          <TabsTrigger value="repetitivas">
             <Repeat />
-            Diarias
+            Repetitivas
           </TabsTrigger>
         </TabsList>
+
+        {/* El mapa de saturacion acompana a todas las vistas: es el contexto de
+            cuanto trabajo hay por delante, no una vista mas. */}
+        <WorkloadHeatmap days={workloadDays} />
 
         <TabsContent value="tabla">
           <TaskTable tasks={boardTasks} onEdit={setEditingTask} />
@@ -81,18 +97,14 @@ export function TareasView({
           <TimeBucketsBoard tasks={boardTasks} onEdit={setEditingTask} />
         </TabsContent>
 
-        <TabsContent value="diarias">
-          <DailyTasks tasks={dailyTasks} onEdit={setEditingTask} />
+        <TabsContent value="repetitivas">
+          <RepeatingTasks
+            dailyTasks={dailyTasks}
+            weeklyTasks={weeklyTasks}
+            onEdit={setEditingTask}
+          />
         </TabsContent>
       </Tabs>
-
-      {/* Crear */}
-      <TaskForm
-        open={newOpen}
-        onOpenChange={setNewOpen}
-        projects={projects}
-        defaultStatus="todo"
-      />
 
       {/* Editar */}
       <TaskForm

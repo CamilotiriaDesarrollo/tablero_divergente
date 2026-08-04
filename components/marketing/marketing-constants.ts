@@ -33,14 +33,18 @@ export interface PlannerNetwork {
 
 /**
  * Redes donde Divergente crea o extiende contenido (ficha de canales): las tres
- * editoriales (YouTube, LinkedIn, Instagram) y la extension Shorts. El campo es
- * texto libre en la base; esta lista solo alimenta el selector.
+ * editoriales (YouTube, LinkedIn, Instagram), la extension Shorts y Skool, la
+ * comunidad. El campo es texto libre en la base; esta lista solo alimenta el
+ * selector, asi que agregar una red aqui no requiere tocar la base.
+ *
+ * Skool no esta en simpleicons: ChannelMark cae solo a la abreviatura "SK".
  */
 export const PLANNER_NETWORKS: PlannerNetwork[] = [
   { name: "YouTube", slug: "youtube", color: "FF0000" },
   { name: "LinkedIn", slug: "linkedin", color: "0A66C2" },
   { name: "Instagram", slug: "instagram", color: "E4405F" },
   { name: "YouTube Shorts", slug: "youtube", color: "FF0000" },
+  { name: "Skool", slug: "skool", color: "F59E0B" },
 ];
 
 const NETWORK_BY_NAME = new Map(PLANNER_NETWORKS.map((n) => [n.name, n]));
@@ -79,4 +83,42 @@ export const PLANNER_STATUS_HINT: Record<MarketingPlannerStatus, string> = {
   en_proceso: "En desarrollo o produccion",
   listo: "Listo para publicar",
   publicado: "Ya publicado",
+};
+
+/**
+ * Color de cada estado del planeador. Es la misma senal repetida en tres sitios
+ * (barra lateral de la tarjeta, punto del encabezado y chip del estado), para
+ * que al mirar el tablero se sepa donde esta cada pieza sin leer una palabra.
+ * El avance va de gris (sin empezar) a azul (publicado).
+ */
+export interface PlannerStatusTone {
+  /** Barra vertical de la tarjeta y punto del encabezado de columna. */
+  accent: string;
+  /** Fondo tenue del chip y de la tarjeta expandida. */
+  soft: string;
+  /** Texto del chip, legible en claro y oscuro. */
+  text: string;
+}
+
+export const PLANNER_STATUS_TONE: Record<MarketingPlannerStatus, PlannerStatusTone> = {
+  borrador: {
+    accent: "bg-slate-400 dark:bg-slate-500",
+    soft: "bg-slate-500/10",
+    text: "text-slate-600 dark:text-slate-300",
+  },
+  en_proceso: {
+    accent: "bg-amber-500",
+    soft: "bg-amber-500/10",
+    text: "text-amber-700 dark:text-amber-300",
+  },
+  listo: {
+    accent: "bg-emerald-500",
+    soft: "bg-emerald-500/10",
+    text: "text-emerald-700 dark:text-emerald-300",
+  },
+  publicado: {
+    accent: "bg-sky-500",
+    soft: "bg-sky-500/10",
+    text: "text-sky-700 dark:text-sky-300",
+  },
 };

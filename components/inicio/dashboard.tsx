@@ -124,16 +124,9 @@ export function WeeklyActivity({
 
 // ---------- Carga futura: matriz de tareas pendientes por dia ----------
 
-export interface WorkloadDay {
-  key: string;
-  label: string;
-  count: number;
-  highPriority: number;
-  isToday: boolean;
-  isPast: boolean;
-  month: string;
-  tasks: TaskWithProject[];
-}
+// El tipo y el calculo viven en lib/utils/workload para que Inicio y Tareas
+// pinten el mismo mapa. Se reexporta aqui por compatibilidad.
+export type { WorkloadDay } from "@/lib/utils/workload";
 
 // ---------- Distribucion por prioridad (barra apilada) ----------
 
