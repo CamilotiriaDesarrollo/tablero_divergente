@@ -34,6 +34,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+/dev.log
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -52,3 +53,15 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# creador de imagenes: binarios de imagen no van al repo ni al deploy
+# (OneDrive los respalda). Los textos (prompts, tablero) si se versionan.
+/creador-imagenes/**/*.png
+/creador-imagenes/**/*.jpg
+/creador-imagenes/**/*.jpeg
+/creador-imagenes/**/*.webp
+/creador-imagenes/**/*.gif
+/creador-imagenes/**/*.psd
+/creador-imagenes/**/*.ai
+/creador-imagenes/**/*.tif
+/creador-imagenes/**/*.tiff

@@ -1,0 +1,8 @@
+AQUI VA EL MD CON LOS PROMPTS Y TODA LA INFORMACION
+
+Deja aqui el archivo .md (o .txt) con:
+- Los prompts base / formulas que usas para generar imagenes.
+- Cualquier instruccion, reglas de estilo, negativos, parametros, etc.
+- Todo lo que el agente creador de imagenes deba conocer.
+
+Con ese archivo yo construyo el agente y el tablero de trabajo.

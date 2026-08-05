@@ -15,6 +15,7 @@ import {
   TODO_SORT_LABEL,
   type TodoSortMode,
 } from "@/components/tareas/task-constants";
+import type { DoingTimer } from "@/lib/utils/doing-timer";
 import {
   Select,
   SelectContent,
@@ -30,6 +31,9 @@ export function KanbanColumn({
   onEdit,
   doingTaskIds,
   onToggleDoing,
+  doingTimers,
+  onPauseTimer,
+  onResumeTimer,
   sortMode,
   onSortModeChange,
 }: {
@@ -38,6 +42,9 @@ export function KanbanColumn({
   onEdit: (task: Task) => void;
   doingTaskIds: string[];
   onToggleDoing: (taskId: string) => void;
+  doingTimers: Record<string, DoingTimer>;
+  onPauseTimer: (taskId: string) => void;
+  onResumeTimer: (taskId: string) => void;
   /** Presente solo en "Por hacer": activa el selector Manual / Por fecha. */
   sortMode?: TodoSortMode;
   onSortModeChange?: (mode: TodoSortMode) => void;
@@ -99,6 +106,9 @@ export function KanbanColumn({
               onEdit={onEdit}
               isDoing={doingTaskIds.includes(task.id)}
               onToggleDoing={onToggleDoing}
+              timer={doingTimers[task.id]}
+              onPauseTimer={onPauseTimer}
+              onResumeTimer={onResumeTimer}
             />
           ))}
         </SortableContext>

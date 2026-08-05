@@ -1,0 +1,7 @@
+AQUI GUARDAMOS LAS IMAGENES QUE VAYAMOS CREANDO
+
+Esta carpeta es para los RESULTADOS: las piezas finales o borradores que
+produzcamos. Se ira llenando a medida que trabajemos.
+
+(Estas imagenes NO se suben al repositorio ni a la web; quedan solo en tu
+carpeta local, respaldada por OneDrive.)

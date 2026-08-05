@@ -1,0 +1,7 @@
+AQUI VAN LAS IMAGENES DE REFERENCIA (ESTILO / MARCA)
+
+Deja aqui las 2 imagenes que definen el ESTILO que queremos mantener
+(la identidad visual de Divergente: colores, tipografia, tono, composicion).
+
+Sirven para que el agente sepa "asi se ve lo nuestro".
+Formatos: .png, .jpg o .webp. Nombralas como quieras.

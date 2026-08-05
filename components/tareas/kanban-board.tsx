@@ -30,10 +30,18 @@ import {
   BOARD_STATUSES,
   type TodoSortMode,
 } from "@/components/tareas/task-constants";
+import {
+  pauseDoingTimer,
+  resumeDoingTimer,
+  startDoingTimer,
+  type DoingTimer,
+} from "@/lib/utils/doing-timer";
 
 type Columns = Record<TaskStatus, TaskWithProject[]>;
+type DoingTimers = Record<string, DoingTimer>;
 const DOING_TASK_STORAGE_KEY = "tablero-divergente:doing-tasks";
 const LEGACY_DOING_TASK_STORAGE_KEY = "tablero-divergente:doing-task";
+const DOING_TIMERS_STORAGE_KEY = "tablero-divergente:doing-timers";
 const TODO_SORT_STORAGE_KEY = "tablero-divergente:todo-orden";
 
 function groupByStatus(tasks: TaskWithProject[]): Columns {
@@ -79,6 +87,7 @@ export function KanbanBoard({
   const [columns, setColumns] = useState<Columns>(() => groupByStatus(tasks));
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [doingTaskIds, setDoingTaskIds] = useState<string[]>([]);
+  const [doingTimers, setDoingTimers] = useState<DoingTimers>({});
   const [doingTasksLoaded, setDoingTasksLoaded] = useState(false);
   const [todoSort, setTodoSort] = useState<TodoSortMode>("manual");
   const startContainerRef = useRef<TaskStatus | null>(null);
@@ -98,6 +107,17 @@ export function KanbanBoard({
       setDoingTaskIds(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : []);
     } catch {
       setDoingTaskIds(legacyTaskId ? [legacyTaskId] : []);
+    }
+    const storedTimers = window.localStorage.getItem(DOING_TIMERS_STORAGE_KEY);
+    try {
+      const parsedTimers = storedTimers ? JSON.parse(storedTimers) : {};
+      setDoingTimers(
+        parsedTimers && typeof parsedTimers === "object" && !Array.isArray(parsedTimers)
+          ? parsedTimers
+          : {},
+      );
+    } catch {
+      setDoingTimers({});
     }
     setDoingTasksLoaded(true);
     const savedSort = window.localStorage.getItem(TODO_SORT_STORAGE_KEY);
@@ -119,7 +139,31 @@ export function KanbanBoard({
     } else {
       window.localStorage.removeItem(DOING_TASK_STORAGE_KEY);
     }
+
+    // Cronometros: poda los de tareas que ya no estan "haciendo" y arranca uno
+    // fresco de 50 minutos para las que vienen de antes de esta funcion
+    // (localStorage viejo, con la tarea marcada pero sin cronometro asociado).
+    setDoingTimers((current) => {
+      const next: DoingTimers = {};
+      for (const id of validTaskIds) next[id] = current[id] ?? startDoingTimer();
+      const sameSet =
+        Object.keys(current).length === Object.keys(next).length &&
+        Object.keys(next).every((id) => current[id] === next[id]);
+      return sameSet ? current : next;
+    });
   }, [doingTaskIds, doingTasksLoaded, tasks]);
+
+  // Persiste los cronometros cada vez que cambian (arrancar, pausar, reanudar,
+  // podar). Separado del efecto de arriba porque pausar/reanudar no toca
+  // doingTaskIds y por lo tanto no dispara ese efecto.
+  useEffect(() => {
+    if (!doingTasksLoaded) return;
+    if (Object.keys(doingTimers).length) {
+      window.localStorage.setItem(DOING_TIMERS_STORAGE_KEY, JSON.stringify(doingTimers));
+    } else {
+      window.localStorage.removeItem(DOING_TIMERS_STORAGE_KEY);
+    }
+  }, [doingTimers, doingTasksLoaded]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -252,11 +296,36 @@ export function KanbanBoard({
   }
 
   function toggleDoing(taskId: string) {
+    const isDoing = doingTaskIds.includes(taskId);
     setDoingTaskIds((current) =>
-      current.includes(taskId)
-        ? current.filter((id) => id !== taskId)
-        : [...current, taskId],
+      isDoing ? current.filter((id) => id !== taskId) : [...current, taskId],
     );
+    // Activar arranca un cronometro nuevo de 50 minutos; desactivar lo borra
+    // (el requisito era que desaparezca, no que quede pausado en el fondo).
+    setDoingTimers((current) => {
+      if (isDoing) {
+        return Object.fromEntries(
+          Object.entries(current).filter(([id]) => id !== taskId),
+        );
+      }
+      return { ...current, [taskId]: startDoingTimer() };
+    });
+  }
+
+  function pauseDoing(taskId: string) {
+    setDoingTimers((current) => {
+      const timer = current[taskId];
+      if (!timer) return current;
+      return { ...current, [taskId]: pauseDoingTimer(timer) };
+    });
+  }
+
+  function resumeDoing(taskId: string) {
+    setDoingTimers((current) => {
+      const timer = current[taskId];
+      if (!timer) return current;
+      return { ...current, [taskId]: resumeDoingTimer(timer) };
+    });
   }
 
   function changeTodoSort(next: TodoSortMode) {
@@ -289,6 +358,9 @@ export function KanbanBoard({
             onEdit={onEdit}
             doingTaskIds={doingTaskIds}
             onToggleDoing={toggleDoing}
+            doingTimers={doingTimers}
+            onPauseTimer={pauseDoing}
+            onResumeTimer={resumeDoing}
             sortMode={status === "todo" ? todoSort : undefined}
             onSortModeChange={status === "todo" ? changeTodoSort : undefined}
           />
