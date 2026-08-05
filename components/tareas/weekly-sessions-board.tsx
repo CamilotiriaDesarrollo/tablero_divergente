@@ -24,7 +24,6 @@ import { addWeekOffset, getWeekDays, weekRangeLabel } from "@/lib/utils/week-ran
 import { semaphoreTone, urgencySemaphore } from "@/lib/utils/urgency";
 import { useDoingSessions, useStopIfDoing } from "@/components/tareas/doing-sessions-context";
 import { SessionTimerControls } from "@/components/tareas/session-timer-controls";
-import { PriorityBadge } from "@/components/tareas/priority-badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -114,18 +113,13 @@ function WeeklySessionCard({
           type="button"
           onClick={() => onEdit(task)}
           className={cn(
-            "min-w-0 flex-1 text-left text-sm leading-snug hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+            "min-w-0 flex-1 text-left text-xs leading-snug hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
             completed && "text-muted-foreground line-through",
           )}
         >
           {task.title}
         </button>
       </div>
-      {task.priority && (
-        <div className="pl-6">
-          <PriorityBadge priority={task.priority} showLabel={false} />
-        </div>
-      )}
       {isToday ? (
         <div className="pl-6">
           <SessionTimerControls
