@@ -127,6 +127,48 @@ export const PRIORITY_LABEL: Record<Priority, string> = {
   baja: "Baja",
 };
 
+// ---------- Semaforo de urgencia (borde de tarjeta) ----------
+// Mismo score de urgencySignal(), en solo 3 bandas para que el color se lea de
+// un vistazo sin abrir el tooltip del medidor. A proposito usa rojo/ambar/
+// esmeralda LITERALES (no los tokens priority-alta/media/baja): la urgencia y
+// la prioridad son dos senales distintas (una vencida de prioridad baja es muy
+// urgente mostrando el ambar de prioridad haria pensar que es alta prioridad).
+
+export type UrgencySemaphore = "roja" | "amarilla" | "verde";
+
+export interface SemaphoreTone {
+  /** Borde de la tarjeta. */
+  border: string;
+  /** Fondo tenue a juego con el borde. */
+  soft: string;
+}
+
+const SEMAPHORE_TONE: Record<UrgencySemaphore, SemaphoreTone> = {
+  roja: { border: "border-red-500/70", soft: "bg-red-500/5" },
+  amarilla: { border: "border-amber-500/70", soft: "bg-amber-500/5" },
+  verde: { border: "border-emerald-500/70", soft: "bg-emerald-500/5" },
+};
+
+/**
+ * Banda semaforo a partir del mismo score 0-100 de urgencySignal(). null solo
+ * para tareas ya hechas (borde neutro, ni urgente ni tranquila: ya no aplica).
+ */
+export function urgencySemaphore(input: {
+  priority: Priority | null;
+  dueAt: string | Date | null | undefined;
+  done?: boolean;
+}): UrgencySemaphore | null {
+  if (input.done) return null;
+  const { score } = urgencySignal(input);
+  if (score >= 75) return "roja";
+  if (score >= 50) return "amarilla";
+  return "verde";
+}
+
+export function semaphoreTone(level: UrgencySemaphore): SemaphoreTone {
+  return SEMAPHORE_TONE[level];
+}
+
 /**
  * Comparador SUGERIDO por urgencia (desc). Es opt-in: la UI lo ofrece como
  * "ordenar por urgencia", pero el orden por defecto respeta position (manual).

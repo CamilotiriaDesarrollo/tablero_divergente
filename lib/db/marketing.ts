@@ -8,6 +8,7 @@
 // pagina.
 import { randomUUID } from "node:crypto";
 import { dbContext, ownerId } from "@/lib/db/context";
+import { isMissingTable } from "@/lib/db/errors";
 import { isSupabaseConfigured } from "@/lib/config";
 import type {
   MarketingAvatar,
@@ -25,12 +26,6 @@ import type {
   MarketingPlannerItemUpdate,
   MarketingPlannerStatus,
 } from "@/types/db";
-
-// Codigos de "tabla inexistente": Postgres crudo (42P01) y PostgREST (PGRST205).
-// Cuando la migracion 0006 no se ha aplicado, degradamos a vacio en vez de romper.
-function isMissingTable(error: { code?: string } | null): boolean {
-  return error?.code === "42P01" || error?.code === "PGRST205";
-}
 
 async function client() {
   return await dbContext().getClient();

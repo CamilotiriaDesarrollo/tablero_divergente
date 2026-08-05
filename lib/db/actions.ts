@@ -17,6 +17,7 @@ import type {
   Phase,
   Project,
   Task,
+  TaskWeeklyCompletion,
 } from "@/types/db";
 
 function revalidateApp() {
@@ -261,6 +262,46 @@ export async function moveTaskOnBoardAction(
 
 export async function reorderTasksAction(ids: string[]): Promise<void> {
   await tasksDb.reorderTasks(z.array(z.string().uuid()).parse(ids));
+  revalidateApp();
+}
+
+// ---------- Completions de tareas semanales ----------
+
+const weeklyOccurrenceSchema = z.object({
+  taskId: z.string().uuid(),
+  date: isoDate,
+});
+
+const weeklyCompletionsRangeSchema = z.object({
+  from: isoDate,
+  to: isoDate,
+});
+
+/** Trae las completions de un rango (lectura bajo demanda desde el cliente al
+ * cambiar de semana en el panel; no cambia nada, no revalida). */
+export async function getWeeklyCompletionsAction(
+  from: string,
+  to: string,
+): Promise<TaskWeeklyCompletion[]> {
+  const parsed = weeklyCompletionsRangeSchema.parse({ from, to });
+  return tasksDb.getWeeklyCompletions(parsed.from, parsed.to);
+}
+
+export async function completeWeeklyOccurrenceAction(
+  taskId: string,
+  date: string,
+): Promise<void> {
+  const parsed = weeklyOccurrenceSchema.parse({ taskId, date });
+  await tasksDb.completeWeeklyOccurrence(parsed.taskId, parsed.date);
+  revalidateApp();
+}
+
+export async function uncompleteWeeklyOccurrenceAction(
+  taskId: string,
+  date: string,
+): Promise<void> {
+  const parsed = weeklyOccurrenceSchema.parse({ taskId, date });
+  await tasksDb.uncompleteWeeklyOccurrence(parsed.taskId, parsed.date);
   revalidateApp();
 }
 

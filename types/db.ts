@@ -558,6 +558,37 @@ export interface Database {
           },
         ];
       };
+      task_weekly_completions: {
+        Row: {
+          id: string;
+          user_id: string;
+          task_id: string;
+          completed_date: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          task_id: string;
+          completed_date: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          task_id?: string;
+          completed_date?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "task_weekly_completions_task_id_fkey";
+            columns: ["task_id"];
+            referencedRelation: "tasks";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -591,6 +622,12 @@ export type PhaseOption = Pick<Phase, "id" | "name" | "position">;
 
 // Tarea con sus subtareas ya anidadas (uso en UI).
 export type TaskWithSubtasks = Task & { subtasks?: Task[] };
+
+// Marca de "esta sesion semanal se hizo tal dia" (migracion 0015). Una tarea
+// con weekly_days recurre indefinidamente: esto registra el avance por fecha
+// sin tocar tasks.status ni tasks.completed_at.
+export type TaskWeeklyCompletion =
+  Database["public"]["Tables"]["task_weekly_completions"]["Row"];
 // Tarea con el proyecto asociado resuelto (uso en listas/calendario).
 export type TaskWithProject = Task & {
   project?: Pick<Project, "id" | "name" | "color" | "icon"> | null;

@@ -30,18 +30,9 @@ import {
   BOARD_STATUSES,
   type TodoSortMode,
 } from "@/components/tareas/task-constants";
-import {
-  pauseDoingTimer,
-  resumeDoingTimer,
-  startDoingTimer,
-  type DoingTimer,
-} from "@/lib/utils/doing-timer";
+import { useDoingSessions } from "@/components/tareas/doing-sessions-context";
 
 type Columns = Record<TaskStatus, TaskWithProject[]>;
-type DoingTimers = Record<string, DoingTimer>;
-const DOING_TASK_STORAGE_KEY = "tablero-divergente:doing-tasks";
-const LEGACY_DOING_TASK_STORAGE_KEY = "tablero-divergente:doing-task";
-const DOING_TIMERS_STORAGE_KEY = "tablero-divergente:doing-timers";
 const TODO_SORT_STORAGE_KEY = "tablero-divergente:todo-orden";
 
 function groupByStatus(tasks: TaskWithProject[]): Columns {
@@ -86,12 +77,16 @@ export function KanbanBoard({
   const router = useRouter();
   const [columns, setColumns] = useState<Columns>(() => groupByStatus(tasks));
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
-  const [doingTaskIds, setDoingTaskIds] = useState<string[]>([]);
-  const [doingTimers, setDoingTimers] = useState<DoingTimers>({});
-  const [doingTasksLoaded, setDoingTasksLoaded] = useState(false);
   const [todoSort, setTodoSort] = useState<TodoSortMode>("manual");
   const startContainerRef = useRef<TaskStatus | null>(null);
   const draggingRef = useRef(false);
+
+  // "Haciendo" + cronometro: estado COMPARTIDO con el panel de sesiones
+  // semanales (misma tarea, mismo cronometro, se vea desde donde se vea). Vive
+  // en un Provider por encima de las pestanas porque Base UI Tabs desmonta el
+  // contenido inactivo (ver components/tareas/doing-sessions-context.tsx).
+  const { doingTaskIds, doingTimers, toggleDoing, pauseDoing, resumeDoing } =
+    useDoingSessions();
 
   // Reconciliar con el servidor cuando llegan datos nuevos (fuera del arrastre).
   useEffect(() => {
@@ -100,70 +95,9 @@ export function KanbanBoard({
   }, [tasks]);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(DOING_TASK_STORAGE_KEY);
-    const legacyTaskId = window.localStorage.getItem(LEGACY_DOING_TASK_STORAGE_KEY);
-    try {
-      const parsed = stored ? JSON.parse(stored) : legacyTaskId ? [legacyTaskId] : [];
-      setDoingTaskIds(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : []);
-    } catch {
-      setDoingTaskIds(legacyTaskId ? [legacyTaskId] : []);
-    }
-    const storedTimers = window.localStorage.getItem(DOING_TIMERS_STORAGE_KEY);
-    try {
-      const parsedTimers = storedTimers ? JSON.parse(storedTimers) : {};
-      setDoingTimers(
-        parsedTimers && typeof parsedTimers === "object" && !Array.isArray(parsedTimers)
-          ? parsedTimers
-          : {},
-      );
-    } catch {
-      setDoingTimers({});
-    }
-    setDoingTasksLoaded(true);
     const savedSort = window.localStorage.getItem(TODO_SORT_STORAGE_KEY);
     if (savedSort === "manual" || savedSort === "fecha") setTodoSort(savedSort);
   }, []);
-
-  useEffect(() => {
-    if (!doingTasksLoaded) return;
-    const validTaskIds = doingTaskIds.filter((id) =>
-      tasks.some((task) => task.id === id && task.status === "en_progreso"),
-    );
-    if (validTaskIds.length !== doingTaskIds.length) {
-      setDoingTaskIds(validTaskIds);
-      return;
-    }
-    if (validTaskIds.length) {
-      window.localStorage.setItem(DOING_TASK_STORAGE_KEY, JSON.stringify(validTaskIds));
-      window.localStorage.removeItem(LEGACY_DOING_TASK_STORAGE_KEY);
-    } else {
-      window.localStorage.removeItem(DOING_TASK_STORAGE_KEY);
-    }
-
-    // Cronometros: poda los de tareas que ya no estan "haciendo" y arranca uno
-    // fresco de 50 minutos para las que vienen de antes de esta funcion
-    // (localStorage viejo, con la tarea marcada pero sin cronometro asociado).
-    setDoingTimers((current) => {
-      const next: DoingTimers = {};
-      for (const id of validTaskIds) next[id] = current[id] ?? startDoingTimer();
-      const sameSet =
-        Object.keys(current).length === Object.keys(next).length &&
-        Object.keys(next).every((id) => current[id] === next[id]);
-      return sameSet ? current : next;
-    });
-  }, [doingTaskIds, doingTasksLoaded, tasks]);
-
-  // Persiste los cronometros cada vez que cambian (arrancar, pausar, reanudar,
-  // podar). Separado del efecto de arriba porque pausar/reanudar no toca
-  // doingTaskIds y por lo tanto no dispara ese efecto.
-  useEffect(() => {
-    if (!doingTasksLoaded) return;
-    if (Object.keys(doingTimers).length) {
-      window.localStorage.setItem(DOING_TIMERS_STORAGE_KEY, JSON.stringify(doingTimers));
-    } else {
-      window.localStorage.removeItem(DOING_TIMERS_STORAGE_KEY);
-    }
-  }, [doingTimers, doingTasksLoaded]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -293,39 +227,6 @@ export function KanbanBoard({
       setColumns(groupByStatus(tasks));
       router.refresh();
     }
-  }
-
-  function toggleDoing(taskId: string) {
-    const isDoing = doingTaskIds.includes(taskId);
-    setDoingTaskIds((current) =>
-      isDoing ? current.filter((id) => id !== taskId) : [...current, taskId],
-    );
-    // Activar arranca un cronometro nuevo de 50 minutos; desactivar lo borra
-    // (el requisito era que desaparezca, no que quede pausado en el fondo).
-    setDoingTimers((current) => {
-      if (isDoing) {
-        return Object.fromEntries(
-          Object.entries(current).filter(([id]) => id !== taskId),
-        );
-      }
-      return { ...current, [taskId]: startDoingTimer() };
-    });
-  }
-
-  function pauseDoing(taskId: string) {
-    setDoingTimers((current) => {
-      const timer = current[taskId];
-      if (!timer) return current;
-      return { ...current, [taskId]: pauseDoingTimer(timer) };
-    });
-  }
-
-  function resumeDoing(taskId: string) {
-    setDoingTimers((current) => {
-      const timer = current[taskId];
-      if (!timer) return current;
-      return { ...current, [taskId]: resumeDoingTimer(timer) };
-    });
   }
 
   function changeTodoSort(next: TodoSortMode) {

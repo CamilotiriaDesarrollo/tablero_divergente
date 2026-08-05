@@ -7,12 +7,14 @@
 // Las vistas de la plantilla (Hoy, buckets, bandeja, diarias) son FILTROS,
 // no tablas (BLUEPRINT seccion 4).
 import { dbContext, ownerId } from "@/lib/db/context";
+import { isMissingTable } from "@/lib/db/errors";
 import { isSupabaseConfigured } from "@/lib/config";
 import type {
   Task,
   TaskInsert,
   TaskStatus,
   TaskUpdate,
+  TaskWeeklyCompletion,
   TaskWithProject,
 } from "@/types/db";
 import { toDateColumn } from "@/lib/utils/dates";
@@ -392,4 +394,71 @@ export async function reorderTasks(ids: string[]): Promise<void> {
       return query;
     }),
   );
+}
+
+// ---------- Completions de tareas semanales (migracion 0015) ----------
+// Una tarea con weekly_days recurre indefinidamente: en vez de marcar la tarea
+// entera 'hecho' (lo que la daria por terminada para siempre), cada dia
+// concreto en que se completa la sesion queda como una fila aparte.
+//
+// La LECTURA es tolerante a que la migracion 0015 aun no este aplicada
+// (degrada a vacio: el panel se ve, solo que sin nada marcado). Las
+// MUTACIONES NO son tolerantes a proposito: si tragaran el error en
+// silencio, el checkbox optimista del cliente quedaria mostrando "completada"
+// sin haberse guardado nada, que es peor que fallar de forma visible con un
+// toast de error.
+
+/** Completions en un rango de fechas (inclusive), para pintar una semana. */
+export async function getWeeklyCompletions(
+  fromISO: string,
+  toISO: string,
+): Promise<TaskWeeklyCompletion[]> {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = await client();
+  let query = supabase
+    .from("task_weekly_completions")
+    .select("*")
+    .gte("completed_date", fromISO)
+    .lte("completed_date", toISO);
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { data, error } = await query;
+  if (error) {
+    if (isMissingTable(error)) return [];
+    throw error;
+  }
+  return data ?? [];
+}
+
+/** Marca la sesion de `taskId` como hecha en `dateISO`. Repetir el mismo dia no duplica. */
+export async function completeWeeklyOccurrence(
+  taskId: string,
+  dateISO: string,
+): Promise<void> {
+  const supabase = await client();
+  const userId = await requireUserId();
+  const { error } = await supabase
+    .from("task_weekly_completions")
+    .upsert(
+      { task_id: taskId, completed_date: dateISO, user_id: userId },
+      { onConflict: "task_id,completed_date", ignoreDuplicates: true },
+    );
+  if (error) throw error;
+}
+
+/** Quita la marca de completada de `taskId` en `dateISO` (deshacer). */
+export async function uncompleteWeeklyOccurrence(
+  taskId: string,
+  dateISO: string,
+): Promise<void> {
+  const supabase = await client();
+  let query = supabase
+    .from("task_weekly_completions")
+    .delete()
+    .eq("task_id", taskId)
+    .eq("completed_date", dateISO);
+  const uid = ownerId();
+  if (uid) query = query.eq("user_id", uid);
+  const { error } = await query;
+  if (error) throw error;
 }

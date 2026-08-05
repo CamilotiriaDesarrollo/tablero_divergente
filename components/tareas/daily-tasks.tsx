@@ -1,19 +1,16 @@
 "use client";
 // Tareas repetitivas: las diarias (is_daily) y las semanales (weekly_days).
 // Van juntas en un solo sitio porque responden a la misma pregunta: "que hago
-// una y otra vez". Cada fila diaria alterna su marca con el switch
-// (toggleDailyAction); al quitarla desaparece al instante y se confirma en el
-// servidor. Los dias de una semanal se cambian desde el formulario de la tarea.
-// Completar con la casilla; el resto en el menu.
+// una y otra vez", pero se muestran distinto porque su naturaleza es distinta.
+// Una diaria es la MISMA cada dia (no varia), asi que su lista plana con
+// switch basta. Una semanal SI varia por dia (lunes si, sabado no) y se hace
+// como sesiones (activar con cronometro, completar por dia), asi que usa el
+// panel semanal de WeeklySessionsBoard en vez de una fila con checkbox.
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import type { Task, TaskWithProject } from "@/types/db";
-import {
-  toggleDailyAction,
-  completeTaskAction,
-  reopenTaskAction,
-} from "@/lib/db/actions";
+import type { Task, TaskWeeklyCompletion, TaskWithProject } from "@/types/db";
+import { toggleDailyAction, completeTaskAction, reopenTaskAction } from "@/lib/db/actions";
 import { formatFecha, diasRestantesLabel, dueDateTone } from "@/lib/utils/dates";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -21,14 +18,9 @@ import { Label } from "@/components/ui/label";
 import { PriorityBadge } from "@/components/tareas/priority-badge";
 import { UrgencyMeter } from "@/components/tareas/urgency-meter";
 import { TaskActionsMenu } from "@/components/tareas/task-actions-menu";
+import { WeeklySessionsBoard } from "@/components/tareas/weekly-sessions-board";
 import { useRunAction } from "@/components/tareas/use-run-action";
 import { cn } from "@/lib/utils";
-import {
-  WEEKDAYS,
-  WEEKDAY_INITIAL,
-  repeticionSemanalLabel,
-  weeklyDaysOf,
-} from "@/lib/utils/weekdays";
 
 function DailyRow({
   task,
@@ -114,77 +106,15 @@ function DailyRow({
   );
 }
 
-/** Fila de una tarea semanal: igual que la diaria, pero mostrando sus dias. */
-function WeeklyRow({
-  task,
-  onEdit,
-}: {
-  task: TaskWithProject;
-  onEdit: (task: Task) => void;
-}) {
-  const { run } = useRunAction();
-  const done = task.status === "hecho";
-  const dias = weeklyDaysOf(task);
-
-  return (
-    <li className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
-      <Checkbox
-        checked={done}
-        onCheckedChange={() =>
-          run(
-            () => (done ? reopenTaskAction(task.id) : completeTaskAction(task.id)),
-            { success: done ? "Tarea reabierta" : "Tarea realizada" },
-          )
-        }
-        aria-label={done ? "Reabrir tarea" : "Realizar tarea"}
-      />
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <button
-          type="button"
-          onClick={() => onEdit(task)}
-          className={cn(
-            "truncate text-left text-sm font-medium hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-            done && "text-muted-foreground line-through",
-          )}
-        >
-          {task.title}
-        </button>
-        <div className="flex items-center gap-2">
-          {task.priority && (
-            <PriorityBadge priority={task.priority} showLabel={false} />
-          )}
-          <span className="text-xs text-muted-foreground">
-            {repeticionSemanalLabel(dias)}
-          </span>
-        </div>
-      </div>
-      <div className="hidden items-center gap-1 sm:flex" aria-hidden>
-        {WEEKDAYS.map((day) => (
-          <span
-            key={day}
-            className={cn(
-              "flex size-6 items-center justify-center rounded-full text-[11px] font-medium",
-              dias.includes(day)
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground/50",
-            )}
-          >
-            {WEEKDAY_INITIAL[day]}
-          </span>
-        ))}
-      </div>
-      <TaskActionsMenu task={task} onEdit={onEdit} />
-    </li>
-  );
-}
-
 export function RepeatingTasks({
   dailyTasks,
   weeklyTasks,
+  initialWeeklyCompletions,
   onEdit,
 }: {
   dailyTasks: TaskWithProject[];
   weeklyTasks: TaskWithProject[];
+  initialWeeklyCompletions: TaskWeeklyCompletion[];
   onEdit: (task: Task) => void;
 }) {
   const [items, setItems] = useState<TaskWithProject[]>(dailyTasks);
@@ -243,18 +173,11 @@ export function RepeatingTasks({
             {weeklyTasks.length}
           </span>
         </h2>
-        {weeklyTasks.length ? (
-          <ul className="flex flex-col gap-2">
-            {weeklyTasks.map((task) => (
-              <WeeklyRow key={task.id} task={task} onEdit={onEdit} />
-            ))}
-          </ul>
-        ) : (
-          <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
-            Ninguna tarea con dias fijos de la semana. Abre una tarea y elige sus
-            dias para que se repita.
-          </p>
-        )}
+        <WeeklySessionsBoard
+          weeklyTasks={weeklyTasks}
+          initialCompletions={initialWeeklyCompletions}
+          onEdit={onEdit}
+        />
       </section>
     </div>
   );
